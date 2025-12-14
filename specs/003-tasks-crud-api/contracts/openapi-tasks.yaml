@@ -1,0 +1,332 @@
+# OpenAPI Contract: Tasks API v1
+# Feature: 003-tasks-crud-api
+# Generated: 2025-12-13
+# Note: FastAPI auto-generates full OpenAPI spec; this is a reference contract
+
+openapi: 3.1.0
+info:
+  title: Tasks API
+  version: 1.0.0
+  description: RESTful API for task management in multi-user Todo application
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /tasks:
+    get:
+      operationId: listTasks
+      summary: List user's tasks
+      description: Returns paginated list of tasks owned by authenticated user
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of items to skip
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum items to return
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+          description: Filter by task status
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    post:
+      operationId: createTask
+      summary: Create a new task
+      description: Creates a task owned by authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of created task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Task UUID
+
+    get:
+      operationId: getTask
+      summary: Get a single task
+      description: Returns task if owned by authenticated user
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    patch:
+      operationId: updateTask
+      summary: Update a task
+      description: Partial update of task owned by authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      operationId: deleteTask
+      summary: Delete a task
+      description: Permanently deletes task owned by authenticated user
+      responses:
+        '204':
+          description: Task deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Better Auth JWT token
+
+  schemas:
+    TaskStatus:
+      type: string
+      enum:
+        - pending
+        - completed
+      description: Task completion status
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Task title
+        description:
+          type: string
+          nullable: true
+          description: Optional task description
+      example:
+        title: "Buy groceries"
+        description: "Milk, eggs, bread"
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Updated task title
+        description:
+          type: string
+          nullable: true
+          description: Updated task description
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+      example:
+        status: "completed"
+
+    TaskResponse:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Task unique identifier
+        user_id:
+          type: string
+          description: Owner's user ID
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          nullable: true
+          description: Task description
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+      example:
+        id: "550e8400-e29b-41d4-a716-446655440000"
+        user_id: "user-123"
+        title: "Buy groceries"
+        description: "Milk, eggs, bread"
+        status: "pending"
+        created_at: "2025-12-13T10:00:00Z"
+        updated_at: "2025-12-13T10:00:00Z"
+
+    ProblemDetail:
+      type: object
+      required:
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          default: "about:blank"
+          description: Problem type URI
+        title:
+          type: string
+          description: Short summary
+        status:
+          type: integer
+          description: HTTP status code
+        detail:
+          type: string
+          description: Detailed explanation
+        instance:
+          type: string
+          description: Request path
+      example:
+        type: "about:blank"
+        title: "Not Found"
+        status: 404
+        detail: "Task not found"
+        instance: "/api/v1/tasks/550e8400-e29b-41d4-a716-446655440099"
+
+  responses:
+    Unauthorized:
+      description: Authentication required or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            type: "about:blank"
+            title: "Unauthorized"
+            status: 401
+            detail: "Missing or invalid authentication token"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            type: "about:blank"
+            title: "Not Found"
+            status: 404
+            detail: "Task not found"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProblemDetail'
+              - type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        loc:
+                          type: array
+                          items:
+                            oneOf:
+                              - type: string
+                              - type: integer
+                        msg:
+                          type: string
+                        type:
+                          type: string
+          example:
+            type: "about:blank"
+            title: "Validation Error"
+            status: 422
+            detail: "Request validation failed"
+            errors:
+              - loc: ["body", "title"]
+                msg: "Field required"
+                type: "missing"
