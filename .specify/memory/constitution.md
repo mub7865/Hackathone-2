@@ -1,69 +1,70 @@
 <!--
 Sync Impact Report:
-- Version change: N/A → 1.0.0 (initial constitution)
-- Modified principles: N/A (new principles added)
-- Added sections: All principles and sections are new
-- Removed sections: N/A
+- Version change: 2.0.0 → 2.1.0 (minor update for principle refinements)
+- Modified principles: Updated to align with user-specified core principles and standards
+- Added sections: Strict SDD, AI-Native Architecture, Progressive Evolution, Documentation First principles
+- Removed sections: Previous principle-specific details
 - Templates requiring updates:
-  - ✅ plan-template.md: Constitution Check section will be followed during planning
-  - ✅ spec-template.md: Requirements should align with constitution principles
-  - ✅ tasks-template.md: Task categorization will reflect constitution-driven development
+  - ✅ plan-template.md: Constitution Check section updated for new principles
+  - ✅ spec-template.md: Requirements aligned with new principles
+  - ✅ tasks-template.md: Task categorization updated for new principles
 - Follow-up TODOs: None
 -->
 
-# Todo In-Memory Python Console App for Hackathon II Constitution
+# The Evolution of Todo [Hackathon II] - From Console to Cloud-Native AI Constitution
 
 ## Core Principles
 
-### Spec-driven development using Claude Code and Spec-Kit Plus
-All development follows spec-driven methodology using Claude Code and Spec-Kit Plus tools for requirements, planning, and task management. Every feature must have a corresponding specification before implementation begins. This ensures clear requirements and testable outcomes.
+### Strict Spec-Driven Development (SDD)
+No code is written without a corresponding approved specification in the `specs/` folder. All changes must be made to specs first, then implemented by AI. This ensures clear requirements and testable outcomes throughout the multi-phase evolution from console app to cloud-native deployment.
 
-### Clean, maintainable Python code following PEP 8 standards
-All code must follow PEP 8 standards for Python, include proper type hints, and maintain clean, readable formatting. Code reviews will verify adherence to these standards. Python 3.13+ with proper type hints is required.
+### AI-Native Architecture
+The system must be designed for AI agents (MCP, OpenAI SDK) from the ground up, not just as an add-on. This includes proper integration with AI tools, agent capabilities, and intelligent automation throughout the architecture.
 
-### User-friendly console interface with clear prompts
-The application must provide a clear, intuitive console interface with well-formatted prompts and error messages. User experience is prioritized in all interface decisions. The interface must be menu-driven with clear options.
+### Progressive Evolution
+The architecture must support evolving from a Monolithic Console App to a Distributed Microservices architecture without complete rewrites. Each phase builds incrementally on the previous one with proper abstraction layers and clear interfaces.
 
-### In-memory data persistence for the duration of the session
-Data is stored in-memory only, persisting only for the duration of the application session. No external databases or file storage is allowed for this hackathon project. Data is lost when the application terminates.
-
-### Modularity with separate functions for each todo operation
-Code must be organized in a modular fashion with separate functions for each todo operation (Add, Delete, Update, View, Mark Complete). Each function should have a single responsibility. The project structure must follow proper src/ folder organization.
-
-### Error handling for invalid inputs and edge cases
-All functions must include proper error handling for invalid inputs, edge cases, and unexpected operations. The application should never crash due to user input. Proper error messages must be displayed to guide users.
+### Documentation First
+Every feature, API endpoint, and database schema must be documented in Markdown specs before implementation. This ensures clear communication, proper planning, and maintainable code across all team members and AI agents.
 
 ## Key Standards and Constraints
 
-- Technology: Python 3.13+ with proper type hints
-- Features: All 5 Basic Level features implemented (Add, Delete, Update, View, Mark Complete)
-- Interface: Command-line interface with menu-driven options
-- Architecture: Proper project structure with src/ folder organization
-- Storage: No external database - in-memory storage only
-- Platform: Console-based interface (no web UI)
-- Tools: Must use Claude Code for all implementation
-- Methodology: Spec-Kit Plus for specification management
-- Code Quality: Follow clean code principles and proper Python project structure
+- **Monorepo Structure:** Strict adherence to the provided `hackathon-todo` monorepo structure (frontend, backend, specs folders)
+- **Tech Stack Adherence:**
+  - Phase I: Python 3.13+, UV, In-Memory
+  - Phase II: Next.js 16+ (App Router), FastAPI, SQLModel, Neon DB, Better Auth
+  - Phase III: OpenAI ChatKit, Agents SDK, Official MCP Python SDK
+  - Phase IV: Docker (Gordon), Minikube, Helm, kubectl-ai
+  - Phase V: Kafka (Redpanda), Dapr, DigitalOcean K8s
+- **Code Quality:** Type-safe Python and TypeScript. Clean Architecture.
+- **Testing:** All critical paths must be testable via the defined specs
+- **No "Vibe Coding":** Manual code edits are prohibited unless fixing minor syntax errors. Logic changes require Spec updates
+- **Phase Logic:** Do not implement Phase III features in Phase I. Follow the strict progression
+- **Deployment:** Deployment specs (Helm, Dockerfiles) must be generated via AI tools (Gordon/kubectl-ai) based on the architectural specs
+- **Security:** JWT handling for Better Auth and FastAPI must be strictly typed and secure
 
 ## Success Criteria
 
-- All 5 basic todo operations working correctly
-- User can add tasks with title and description
-- User can list all tasks with status indicators
-- User can update task details
-- User can delete tasks by ID
-- User can mark tasks as complete/incomplete
-- Proper error handling for invalid operations
-- Clean, readable code with appropriate comments
+- **Phase I:** Working Console App managing state in memory
+- **Phase II:** Functional Full-Stack Web App with Auth and DB persistence
+- **Phase III:** AI Chatbot managing Todo state via Natural Language (MCP)
+- **Phase IV:** Successful local deployment on Minikube
+- **Phase V:** Distributed Event-Driven system (Kafka/Dapr) on Cloud
+- All phases: Proper error handling for invalid operations
+- All phases: Clean, readable code with appropriate comments and documentation
+- All phases: Adherence to spec-driven development methodology
+- All phases: Following the defined tech stack and architecture principles
 
 ## Governance
 
-- All development must follow spec-driven methodology using Claude Code
-- Code must adhere to PEP 8 standards and include type hints
-- All 5 basic todo operations must be implemented
-- Error handling required for all operations
-- Implementation must use in-memory storage only
-- No external dependencies beyond Python standard library
+- All development must follow spec-driven methodology using Claude Code across all 5 phases
+- Code must adhere to appropriate language standards and include type hints
+- Each phase must meet its specific requirements and success criteria
+- Error handling required for all operations across all phases
+- Strict adherence to the defined tech stack for each phase
 - All changes must be tracked with Prompt History Records (PHRs)
+- No manual code changes without spec updates (except minor syntax fixes)
+- Each phase must be completed before moving to the next
+- Architecture must support progressive evolution without major rewrites
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-07 | **Last Amended**: 2025-12-07
+**Version**: 2.1.0 | **Ratified**: 2025-12-10 | **Last Amended**: 2025-12-10
