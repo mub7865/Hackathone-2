@@ -230,9 +230,8 @@ export function Header() {
         ref={mobileMenuRef}
         className={`
           md:hidden absolute top-full left-0 right-0
-          bg-background-elevated/98 backdrop-blur-md
-          border-b border-border-subtle
-          shadow-lg
+          bg-[#1a1a2e] border-b border-border-subtle
+          shadow-xl
           transition-all duration-300 ease-out
           ${isMobileMenuOpen
             ? 'opacity-100 translate-y-0 pointer-events-auto'
