@@ -23,11 +23,12 @@ app = FastAPI(
 # Register exception handlers for RFC 7807 error responses
 register_exception_handlers(app)
 
-# CORS middleware for frontend dev server
-# Only allow localhost origins in development
+# CORS middleware for frontend
+# Allow localhost for development and Vercel for production
 CORS_ORIGINS = [
     "http://localhost:3000",  # Next.js dev server
     "http://127.0.0.1:3000",
+    "https://calm-orbit-todo.vercel.app",  # Vercel production frontend
 ]
 
 app.add_middleware(
