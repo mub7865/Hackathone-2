@@ -24,6 +24,7 @@ export function Header() {
   const [user, setUser] = useState<{ name?: string | null; email: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     initAuth();
@@ -62,10 +63,14 @@ export function Header() {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Close mobile menu when clicking outside
+  // Close mobile menu when clicking outside (but not on hamburger button)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isOutsideMenu = mobileMenuRef.current && !mobileMenuRef.current.contains(target);
+      const isOutsideHamburger = hamburgerRef.current && !hamburgerRef.current.contains(target);
+
+      if (isOutsideMenu && isOutsideHamburger) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -191,6 +196,7 @@ export function Header() {
 
           {/* Mobile: Hamburger Button */}
           <button
+            ref={hamburgerRef}
             type="button"
             onClick={toggleMobileMenu}
             className="md:hidden relative w-10 h-10 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-background-surface transition-colors duration-fast focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-background-base"
