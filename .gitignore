@@ -43,8 +43,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
+# Allow frontend lib folder
+!phase2/frontend/lib/
 parts/
 sdist/
 var/
