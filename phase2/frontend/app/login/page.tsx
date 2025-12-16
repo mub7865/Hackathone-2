@@ -1,27 +1,48 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/lib/auth/client';
 import { Button, Input } from '@/components/ui';
+import { PageLayout } from '@/components/layout/PageLayout';
 
 /**
- * Login page with design system tokens
- * Feature: 006-ui-theme-motion (FR-016)
+ * Login page with design system tokens and animations
+ * Feature: 006-ui-theme-motion (FR-016, FR-021)
  *
+ * - Redirects to previous page after login (or home if none)
+ * - Shows clear error if user is not registered
  * - Semantic color tokens
  * - Smooth focus transitions
- * - Design system consistency
  */
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/tasks';
+  // Get redirect URL from query params, default to current referrer or home
+  const redirectParam = searchParams.get('redirect');
 
+  const [redirectTo, setRedirectTo] = useState('/');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Set redirect URL on client side
+  useEffect(() => {
+    if (redirectParam) {
+      setRedirectTo(redirectParam);
+    } else {
+      // Use referrer if available and it's from our site
+      const referrer = document.referrer;
+      if (referrer && referrer.includes(window.location.host)) {
+        const referrerPath = new URL(referrer).pathname;
+        // Don't redirect back to login/register pages
+        if (referrerPath !== '/login' && referrerPath !== '/register') {
+          setRedirectTo(referrerPath);
+        }
+      }
+    }
+  }, [redirectParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,28 +50,46 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      // Use auth client's signIn helper
       await signIn(email, password);
-
-      // Redirect to tasks page (cookie is already set by signIn)
       window.location.href = redirectTo;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      // Check if it's a "user not found" or "invalid credentials" error
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+
+      if (errorMessage.toLowerCase().includes('not found') ||
+          errorMessage.toLowerCase().includes('invalid') ||
+          errorMessage.toLowerCase().includes('unauthorized')) {
+        setError('Account not found. Please check your email or register first.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md p-8 bg-background-elevated border border-border-subtle rounded-lg">
-      <h1 className="text-heading-lg font-semibold mb-6 text-center text-text-primary">
-        Sign In
+    <div
+      className="
+        w-full max-w-md p-8 bg-background-elevated border border-border-subtle rounded-xl
+        animate-scale-in motion-reduce:animate-none
+        shadow-xl shadow-black/20
+      "
+    >
+      <h1 className="text-heading-lg font-semibold mb-2 text-center text-text-primary">
+        Welcome Back
       </h1>
+      <p className="text-body-sm text-text-muted text-center mb-8">
+        Sign in to continue to TaskFlow
+      </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div
-            className="p-3 text-body-sm text-accent-error bg-accent-error/10 border border-accent-error/20 rounded-md"
+            className="
+              p-3 text-body-sm text-accent-error bg-accent-error/10 border border-accent-error/20 rounded-md
+              animate-fade-in motion-reduce:animate-none
+            "
             role="alert"
           >
             {error}
@@ -81,16 +120,17 @@ function LoginForm() {
           isLoading={isLoading}
           disabled={isLoading}
           className="w-full mt-6"
+          size="lg"
         >
           Sign In
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-body-sm text-text-secondary">
+      <p className="mt-8 text-center text-body-sm text-text-secondary">
         Don&apos;t have an account?{' '}
         <Link
-          href="/register"
-          className="text-accent-primary hover:text-accent-primary/80 transition-colors duration-fast"
+          href={`/register${redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ''}`}
+          className="text-accent-primary hover:text-accent-hover transition-colors duration-fast font-medium"
         >
           Sign up
         </Link>
@@ -100,25 +140,27 @@ function LoginForm() {
 }
 
 /**
- * Login page wrapper
+ * Login page wrapper with PageLayout
  */
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4 bg-background-base">
-      <Suspense
-        fallback={
-          <div className="w-full max-w-md p-8 bg-background-elevated border border-border-subtle rounded-lg">
-            <div className="h-8 w-24 mx-auto mb-6 bg-background-surface rounded animate-pulse" />
-            <div className="space-y-4">
-              <div className="h-10 bg-background-surface rounded animate-pulse" />
-              <div className="h-10 bg-background-surface rounded animate-pulse" />
-              <div className="h-10 bg-background-surface rounded animate-pulse" />
+    <PageLayout>
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Suspense
+          fallback={
+            <div className="w-full max-w-md p-8 bg-background-elevated border border-border-subtle rounded-xl">
+              <div className="h-8 w-32 mx-auto mb-6 bg-background-surface rounded animate-pulse" />
+              <div className="space-y-4">
+                <div className="h-12 bg-background-surface rounded animate-pulse" />
+                <div className="h-12 bg-background-surface rounded animate-pulse" />
+                <div className="h-12 bg-background-surface rounded animate-pulse" />
+              </div>
             </div>
-          </div>
-        }
-      >
-        <LoginForm />
-      </Suspense>
-    </main>
+          }
+        >
+          <LoginForm />
+        </Suspense>
+      </div>
+    </PageLayout>
   );
 }

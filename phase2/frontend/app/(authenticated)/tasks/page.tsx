@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, Suspense } from 'react';
-import { useTasks, useTaskMutations, useToast, useTaskQuery, useTaskStats } from '@/hooks';
+import { useTasks, useTaskMutations, useToast, useTaskQuery, useAllTaskStats } from '@/hooks';
 import {
   TaskFilterTabs,
   TaskList,
@@ -20,13 +20,16 @@ import type { Task, ModalType, TaskFilter, SortField, SortOrder } from '@/types/
  * Tasks page with Wow Layer panels
  * Feature: 006-ui-theme-motion (FR-044, FR-047, FR-049)
  *
- * - Focus Summary Panel with task stats
+ * - Focus Summary Panel with task stats (from ALL tasks, not filtered)
  * - Reflection Panel with motivational text
  * - Responsive: panels beside list on lg+, stacked below on <lg
  */
 function TasksPageContent() {
   // URL-synced query state - this is the source of truth
   const { query, setStatus, setSearch, setSortAndOrder } = useTaskQuery();
+
+  // Refresh trigger for stats - increments when tasks are mutated
+  const [statsRefreshTrigger, setStatsRefreshTrigger] = useState(0);
 
   // Task list state - controlled by URL query values (single source of truth)
   const {
@@ -127,6 +130,11 @@ function TasksPageContent() {
     setSelectedTask(null);
   }, []);
 
+  // Trigger stats refresh
+  const refreshStats = useCallback(() => {
+    setStatsRefreshTrigger(prev => prev + 1);
+  }, []);
+
   // Handle create task submission
   const handleCreateSubmit = useCallback(
     async (data: TaskFormData) => {
@@ -140,9 +148,10 @@ function TasksPageContent() {
         highlightTask(task.id);
         closeModal();
         success('Task created successfully');
+        refreshStats(); // Refresh stats after create
       }
     },
-    [handleCreate, addTask, highlightTask, closeModal, success]
+    [handleCreate, addTask, highlightTask, closeModal, success, refreshStats]
   );
 
   // Handle edit task submission
@@ -160,9 +169,10 @@ function TasksPageContent() {
         updateTaskInList(task);
         closeModal();
         success('Task updated successfully');
+        refreshStats(); // Refresh stats after update
       }
     },
-    [selectedTask, handleUpdate, updateTaskInList, closeModal, success]
+    [selectedTask, handleUpdate, updateTaskInList, closeModal, success, refreshStats]
   );
 
   // Handle delete confirmation
@@ -175,8 +185,9 @@ function TasksPageContent() {
       removeTask(selectedTask.id);
       closeModal();
       success('Task deleted successfully');
+      refreshStats(); // Refresh stats after delete
     }
-  }, [selectedTask, handleDelete, removeTask, closeModal, success]);
+  }, [selectedTask, handleDelete, removeTask, closeModal, success, refreshStats]);
 
   // Handle status toggle
   const handleStatusToggle = useCallback(
@@ -190,15 +201,24 @@ function TasksPageContent() {
             ? 'Task marked as completed'
             : 'Task marked as pending';
         success(message);
+        refreshStats(); // Refresh stats after toggle
       } else {
         showError('Failed to update task status');
       }
     },
-    [handleToggleStatus, updateTaskInList, success, showError]
+    [handleToggleStatus, updateTaskInList, success, showError, refreshStats]
   );
 
-  // Compute task stats for panels (from ALL tasks, no date filtering)
-  const stats = useTaskStats(tasks);
+  // Fetch ALL tasks stats (not filtered) - refreshes when tasks are mutated
+  const allStats = useAllTaskStats(statsRefreshTrigger);
+
+  // Convert to TaskStats format for panels
+  const stats = {
+    pending: allStats.pending,
+    completed: allStats.completed,
+    total: allStats.total,
+    percentage: allStats.percentage,
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-6">

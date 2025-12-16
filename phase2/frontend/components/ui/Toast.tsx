@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ToastMessage } from '@/types/task';
 
 export interface ToastProps {
@@ -117,16 +118,23 @@ export interface ToastContainerProps {
 }
 
 /**
- * Container for toast notifications - renders in fixed position
+ * Container for toast notifications - renders via Portal to document.body
+ * This ensures toasts appear above all other content regardless of stacking context
  */
 export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
-  if (toasts.length === 0) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || toasts.length === 0) {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+      className="fixed top-20 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none"
       aria-label="Notifications"
     >
       {toasts.map((toast) => (
@@ -134,6 +142,7 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
           <Toast toast={toast} onDismiss={onDismiss} />
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }

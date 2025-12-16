@@ -8,3 +8,4 @@ export { useTaskQuery, type UseTaskQueryReturn, type TaskQueryState } from './us
 export { useReducedMotion } from './useReducedMotion';
 export { useTimeOfDay } from './useTimeOfDay';
 export { useTaskStats, type TaskStats } from './useTaskStats';
+export { useAllTaskStats, type AllTaskStats } from './useAllTaskStats';
