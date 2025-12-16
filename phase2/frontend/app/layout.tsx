@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Tasks',
-  description: 'Manage your tasks efficiently',
+  title: 'Calm Orbit Todo',
+  description: 'A calm, focused task manager to organize your day without the overwhelm.',
 };
 
 /**

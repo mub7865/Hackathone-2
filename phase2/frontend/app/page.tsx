@@ -141,7 +141,7 @@ export default function HomePage() {
               "
               style={{ animationDelay: '400ms' }}
             >
-              Why TaskFlow?
+              Why Calm Orbit Todo?
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
@@ -222,7 +222,7 @@ export default function HomePage() {
                 Ready to get organized?
               </h2>
               <p className="text-text-secondary mb-8 max-w-lg mx-auto">
-                Join thousands of people who have simplified their task management with TaskFlow.
+                Join thousands of people who have simplified their task management with Calm Orbit Todo.
               </p>
               <Link
                 href="/register"

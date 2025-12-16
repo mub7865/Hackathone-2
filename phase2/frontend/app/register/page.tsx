@@ -91,7 +91,7 @@ function RegisterForm() {
         Create Account
       </h1>
       <p className="text-body-sm text-text-muted text-center mb-8">
-        Get started with TaskFlow today
+        Get started with Calm Orbit Todo
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">

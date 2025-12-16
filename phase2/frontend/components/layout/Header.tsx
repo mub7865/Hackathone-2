@@ -86,7 +86,7 @@ export function Header() {
             href="/"
             className="text-xl font-semibold text-text-primary hover:text-accent-primary transition-colors duration-fast"
           >
-            TaskFlow
+            Calm Orbit Todo
           </Link>
 
           {/* Right: Navigation */}

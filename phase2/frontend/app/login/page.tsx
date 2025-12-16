@@ -80,7 +80,7 @@ function LoginForm() {
         Welcome Back
       </h1>
       <p className="text-body-sm text-text-muted text-center mb-8">
-        Sign in to continue to TaskFlow
+        Sign in to continue to Calm Orbit Todo
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
