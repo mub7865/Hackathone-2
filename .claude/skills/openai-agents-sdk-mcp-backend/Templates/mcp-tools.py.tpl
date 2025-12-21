@@ -1,22 +1,34 @@
 """
-MCP Tools Definition Template
+Function Tools Definition Template (ALTERNATIVE - Not MCP Standard)
 
 PURPOSE:
-- Define function tools for AI agent to call.
-- Wrap existing CRUD operations as agent-callable tools.
-- Provide proper type hints and docstrings for schema generation.
+- Define function tools using @function_tool decorator from OpenAI Agents SDK.
+- This is a SIMPLER but NOT MCP-STANDARD approach.
+- Use this only for quick prototypes, NOT for hackathon submission.
+
+IMPORTANT:
+- For hackathon, use mcp-server.py.tpl with @mcp.tool() instead!
+- @function_tool creates agent-specific tools, not MCP protocol tools.
+- Tools defined here are NOT reusable by other MCP clients.
 
 HOW TO USE:
-- Copy this template to your project (e.g. app/chat/tools.py).
-- Replace placeholder implementations with actual database operations.
-- Ensure docstrings follow Google/Sphinx/NumPy format for parsing.
+- Copy this template ONLY if you need a quick prototype.
+- For proper MCP implementation, use mcp-server.py.tpl instead.
+
+COMPARISON:
+| Aspect | @mcp.tool() | @function_tool |
+|--------|-------------|----------------|
+| Protocol | MCP Standard | OpenAI-specific |
+| Reusability | Any MCP client | This agent only |
+| Architecture | Separate server | Same process |
+| Hackathon | RECOMMENDED | Not recommended |
 
 REFERENCES:
 - https://openai.github.io/openai-agents-python/tools/
-- https://github.com/modelcontextprotocol/python-sdk
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
+
 from agents import function_tool
 
 # Import your database session and models
@@ -29,11 +41,11 @@ async def add_task(
     user_id: str,
     title: str,
     description: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Add a new task for the user.
 
-    Creates a new task with the given title and optional description.
-    The task is associated with the specified user.
+    NOTE: This uses @function_tool (OpenAI Agents SDK), not @mcp.tool() (MCP SDK).
+    For hackathon, prefer using mcp-server.py.tpl with @mcp.tool() instead.
 
     Args:
         user_id: The unique identifier of the user.
@@ -41,14 +53,7 @@ async def add_task(
         description: Optional detailed description of the task.
 
     Returns:
-        Dictionary containing:
-        - task_id: The ID of the created task.
-        - status: "created" if successful.
-        - title: The title of the created task.
-
-    Example:
-        >>> await add_task("user123", "Buy groceries", "Milk, eggs, bread")
-        {"task_id": 5, "status": "created", "title": "Buy groceries"}
+        Dictionary containing task_id, status, and title.
     """
     # TODO: Replace with actual database implementation
     # async with get_session() as session:
@@ -60,7 +65,7 @@ async def add_task(
 
     # Placeholder implementation
     return {
-        "task_id": 1,
+        "task_id": "1",
         "status": "created",
         "title": title,
     }
@@ -70,87 +75,46 @@ async def add_task(
 async def list_tasks(
     user_id: str,
     status: str = "all",
-) -> List[dict]:
+) -> dict[str, Any]:
     """List tasks for the user.
-
-    Retrieves tasks belonging to the specified user, optionally
-    filtered by completion status.
 
     Args:
         user_id: The unique identifier of the user.
         status: Filter by status - "all", "pending", or "completed".
-                Defaults to "all".
 
     Returns:
-        List of task dictionaries, each containing:
-        - id: Task ID
-        - title: Task title
-        - description: Task description (may be empty)
-        - completed: Boolean completion status
-        - created_at: Creation timestamp
-
-    Example:
-        >>> await list_tasks("user123", status="pending")
-        [{"id": 1, "title": "Buy groceries", "completed": False, ...}]
+        Dictionary containing tasks list, count, and filter applied.
     """
     # TODO: Replace with actual database implementation
-    # async with get_session() as session:
-    #     query = select(Task).where(Task.user_id == user_id)
-    #     if status == "pending":
-    #         query = query.where(Task.completed == False)
-    #     elif status == "completed":
-    #         query = query.where(Task.completed == True)
-    #     result = await session.exec(query)
-    #     tasks = result.all()
-    #     return [task.dict() for task in tasks]
-
     # Placeholder implementation
-    return [
-        {
-            "id": 1,
-            "title": "Example Task",
-            "description": "",
-            "completed": False,
-            "created_at": "2025-01-01T00:00:00Z",
-        }
-    ]
+    return {
+        "tasks": [
+            {
+                "id": "1",
+                "title": "Example Task",
+                "description": "",
+                "completed": False,
+            }
+        ],
+        "count": 1,
+        "filter": status,
+    }
 
 
 @function_tool
 async def complete_task(
     user_id: str,
-    task_id: int,
-) -> dict:
+    task_id: str,
+) -> dict[str, Any]:
     """Mark a task as complete.
-
-    Updates the specified task to completed status. Only tasks
-    belonging to the specified user can be completed.
 
     Args:
         user_id: The unique identifier of the user.
         task_id: The ID of the task to mark as complete.
 
     Returns:
-        Dictionary containing:
-        - task_id: The ID of the completed task.
-        - status: "completed" if successful, "error" if task not found.
-        - title: The title of the completed task.
-        - error: Error message if task not found.
-
-    Example:
-        >>> await complete_task("user123", 5)
-        {"task_id": 5, "status": "completed", "title": "Buy groceries"}
+        Dictionary with task_id, status, and title.
     """
-    # TODO: Replace with actual database implementation
-    # async with get_session() as session:
-    #     task = await session.get(Task, task_id)
-    #     if not task or task.user_id != user_id:
-    #         return {"task_id": task_id, "status": "error", "error": "Task not found"}
-    #     task.completed = True
-    #     session.add(task)
-    #     await session.commit()
-    #     return {"task_id": task.id, "status": "completed", "title": task.title}
-
     # Placeholder implementation
     return {
         "task_id": task_id,
@@ -162,38 +126,17 @@ async def complete_task(
 @function_tool
 async def delete_task(
     user_id: str,
-    task_id: int,
-) -> dict:
+    task_id: str,
+) -> dict[str, Any]:
     """Delete a task from the list.
-
-    Permanently removes the specified task. Only tasks belonging
-    to the specified user can be deleted.
 
     Args:
         user_id: The unique identifier of the user.
         task_id: The ID of the task to delete.
 
     Returns:
-        Dictionary containing:
-        - task_id: The ID of the deleted task.
-        - status: "deleted" if successful, "error" if task not found.
-        - title: The title of the deleted task.
-        - error: Error message if task not found.
-
-    Example:
-        >>> await delete_task("user123", 5)
-        {"task_id": 5, "status": "deleted", "title": "Buy groceries"}
+        Dictionary with task_id, status, and title.
     """
-    # TODO: Replace with actual database implementation
-    # async with get_session() as session:
-    #     task = await session.get(Task, task_id)
-    #     if not task or task.user_id != user_id:
-    #         return {"task_id": task_id, "status": "error", "error": "Task not found"}
-    #     title = task.title
-    #     await session.delete(task)
-    #     await session.commit()
-    #     return {"task_id": task_id, "status": "deleted", "title": title}
-
     # Placeholder implementation
     return {
         "task_id": task_id,
@@ -205,15 +148,11 @@ async def delete_task(
 @function_tool
 async def update_task(
     user_id: str,
-    task_id: int,
+    task_id: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Update a task's title or description.
-
-    Modifies the specified task with new values. Only provided
-    fields will be updated. Only tasks belonging to the specified
-    user can be updated.
 
     Args:
         user_id: The unique identifier of the user.
@@ -222,32 +161,27 @@ async def update_task(
         description: New description for the task (optional).
 
     Returns:
-        Dictionary containing:
-        - task_id: The ID of the updated task.
-        - status: "updated" if successful, "error" if task not found.
-        - title: The current title of the task.
-        - error: Error message if task not found.
-
-    Example:
-        >>> await update_task("user123", 5, title="Buy groceries and fruits")
-        {"task_id": 5, "status": "updated", "title": "Buy groceries and fruits"}
+        Dictionary with task_id, status, and title.
     """
-    # TODO: Replace with actual database implementation
-    # async with get_session() as session:
-    #     task = await session.get(Task, task_id)
-    #     if not task or task.user_id != user_id:
-    #         return {"task_id": task_id, "status": "error", "error": "Task not found"}
-    #     if title is not None:
-    #         task.title = title
-    #     if description is not None:
-    #         task.description = description
-    #     session.add(task)
-    #     await session.commit()
-    #     return {"task_id": task.id, "status": "updated", "title": task.title}
-
     # Placeholder implementation
     return {
         "task_id": task_id,
         "status": "updated",
         "title": title or "Example Task",
     }
+
+
+# ============================================================================
+# USAGE WITH AGENT (NOT RECOMMENDED FOR HACKATHON)
+# ============================================================================
+#
+# from agents import Agent
+#
+# agent = Agent(
+#     name="Todo Assistant",
+#     instructions="Help users manage tasks.",
+#     tools=[add_task, list_tasks, complete_task, delete_task, update_task],
+# )
+#
+# # This does NOT use MCP protocol - tools are directly embedded in agent.
+# # For hackathon, use mcp-server.py.tpl with proper MCP server instead.

@@ -1,23 +1,41 @@
 """FastAPI application entrypoint.
 
-Todo App Backend - Phase II
-REST API for task management with JWT authentication.
+Todo App Backend - Phase II + Phase III AI Chatbot
+REST API for task management with JWT authentication and AI-powered chat.
+
+Phase III Architecture (Updated 2025-12-21):
+- MCP Server mounted at /mcp endpoint via mcp.streamable_http_app()
+- Agent connects via MCPServerStreamableHttp(url="/mcp/mcp")
+- Tools receive user_id as parameter for data isolation
+- Lifespan manages MCP session manager
 """
 
 import os
+import contextlib
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import router as v1_router
 from app.core.exceptions import register_exception_handlers
+from app.services.mcp_server import mcp
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan including MCP session manager."""
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(mcp.session_manager.run())
+        yield
+
 
 app = FastAPI(
     title="Todo API",
-    description="REST API for multi-user task management",
-    version="1.0.0",
+    description="REST API for multi-user task management with AI chatbot",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Register exception handlers for RFC 7807 error responses
@@ -47,6 +65,11 @@ if os.environ.get("ENVIRONMENT") != "test":
 
 # Include API v1 router
 app.include_router(v1_router)
+
+# Mount MCP Server at /mcp endpoint for AI agent tool access
+# Note: streamable_http_app() mounts at /mcp internally, so full path is /mcp/mcp
+# Agent connects via MCPServerStreamableHttp(url="http://localhost:8000/mcp/mcp")
+app.mount("/mcp", mcp.streamable_http_app())
 
 
 @app.get("/health", tags=["health"])

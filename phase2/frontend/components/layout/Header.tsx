@@ -154,6 +154,11 @@ export function Header() {
               Tasks
             </Link>
 
+            {/* Chatbot link */}
+            <Link href="/chatbot" className={navLinkClass('/chatbot')}>
+              Chatbot
+            </Link>
+
             {/* Auth section */}
             {!isLoading && (
               <>
@@ -252,6 +257,9 @@ export function Header() {
           </Link>
           <Link href="/tasks" className={mobileNavLinkClass('/tasks')}>
             Tasks
+          </Link>
+          <Link href="/chatbot" className={mobileNavLinkClass('/chatbot')}>
+            Chatbot
           </Link>
 
           {/* Divider */}

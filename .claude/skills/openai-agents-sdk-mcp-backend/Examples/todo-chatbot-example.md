@@ -1,9 +1,11 @@
 # Todo Chatbot Example
 
 This example demonstrates a complete AI-powered todo chatbot implementation
-using OpenAI Agents SDK with MCP tools.
+using **OpenAI Agents SDK** with a **standalone MCP server** (recommended approach).
 
 ## Architecture Overview
+
+### Recommended: Standalone MCP Server
 
 ```
 ┌─────────────────┐     ┌──────────────────────────────────────────────┐
@@ -14,22 +16,32 @@ using OpenAI Agents SDK with MCP tools.
 │                 │     │         ▼                                    │
 │                 │     │  ┌─────────────────────┐                     │
 │                 │◄────│  │  OpenAI Agent       │                     │
-│                 │     │  │  "Todo Assistant"   │                     │
+│                 │     │  │  (mcp_servers=[])   │                     │
 │                 │     │  └─────────┬───────────┘                     │
+│                 │     │            │ MCP Protocol                    │
+│                 │     │            ▼                                 │
+│                 │     │  ┌─────────────────────────────────────────┐ │
+│                 │     │  │  MCP Server (Separate Process)          │ │
+│                 │     │  │  @mcp.tool() decorators                 │ │
+│                 │     │  │  - add_task                             │ │
+│                 │     │  │  - list_tasks                           │ │
+│                 │     │  │  - complete_task                        │ │
+│                 │     │  │  - delete_task                          │ │
+│                 │     │  │  - update_task                          │ │
+│                 │     │  └─────────────────────────────────────────┘ │
 │                 │     │            │                                 │
 │                 │     │            ▼                                 │
-│                 │     │  ┌─────────────────────┐     ┌────────────┐  │
-│                 │     │  │  MCP Tools          │────►│  Neon DB   │  │
-│                 │     │  │  - add_task         │◄────│            │  │
-│                 │     │  │  - list_tasks       │     │  - tasks   │  │
-│                 │     │  │  - complete_task    │     │  - convos  │  │
-│                 │     │  │  - delete_task      │     │  - messages│  │
-│                 │     │  │  - update_task      │     └────────────┘  │
-│                 │     │  └─────────────────────┘                     │
+│                 │     │     ┌────────────┐                           │
+│                 │     │     │  Neon DB   │                           │
+│                 │     │     │            │                           │
+│                 │     │     │  - tasks   │                           │
+│                 │     │     │  - convos  │                           │
+│                 │     │     │  - messages│                           │
+│                 │     │     └────────────┘                           │
 └─────────────────┘     └──────────────────────────────────────────────┘
 ```
 
-## GOOD: Structured Implementation
+## GOOD: Proper MCP Server Implementation (Recommended)
 
 ### 1. Project Structure
 
@@ -39,6 +51,7 @@ backend/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app entry
 │   ├── db.py                # Database configuration
+│   ├── mcp_server.py        # Standalone MCP server (NEW!)
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── task.py          # Task model (from Phase II)
@@ -49,38 +62,57 @@ backend/
 │   │   └── chat.py          # Chat endpoint
 │   └── chat/
 │       ├── __init__.py
-│       ├── agent.py         # Agent configuration
-│       └── tools.py         # MCP tools
+│       └── agent.py         # Agent configuration
 ├── pyproject.toml
 └── .env
 ```
 
-### 2. MCP Tools Implementation
+### 2. MCP Server Implementation (Using Official MCP SDK)
 
 ```python
-# app/chat/tools.py
-from typing import List, Optional
-from agents import function_tool
-from sqlmodel import Session, select
-from app.db import engine
+# app/mcp_server.py
+"""
+Standalone MCP Server using Official MCP Python SDK.
+Run separately: python -m app.mcp_server
+"""
+import os
+from typing import Any
+
+from dotenv import load_dotenv
+from mcp.server.fastmcp import FastMCP
+from sqlmodel import Session, create_engine, select
+
 from app.models.task import Task
 
+# Load environment variables
+load_dotenv()
 
-@function_tool
+# Initialize FastMCP server
+mcp = FastMCP("todo-mcp-server")
+
+# Database connection
+DATABASE_URL = os.environ.get("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+
+
+@mcp.tool()
 async def add_task(
     user_id: str,
     title: str,
     description: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Add a new task for the user.
 
+    Creates a new task with the given title and optional description.
+    The task is associated with the specified user.
+
     Args:
-        user_id: The user's unique identifier.
-        title: The title of the task.
-        description: Optional description.
+        user_id: The unique identifier of the user.
+        title: The title of the task (required, 1-200 characters).
+        description: Optional detailed description of the task.
 
     Returns:
-        Dictionary with task_id, status, and title.
+        Dictionary containing task_id, status, and title.
     """
     with Session(engine) as session:
         task = Task(
@@ -93,25 +125,25 @@ async def add_task(
         session.commit()
         session.refresh(task)
         return {
-            "task_id": task.id,
+            "task_id": str(task.id),
             "status": "created",
             "title": task.title,
         }
 
 
-@function_tool
+@mcp.tool()
 async def list_tasks(
     user_id: str,
     status: str = "all",
-) -> List[dict]:
+) -> dict[str, Any]:
     """List tasks for the user.
 
     Args:
-        user_id: The user's unique identifier.
+        user_id: The unique identifier of the user.
         status: Filter - "all", "pending", or "completed".
 
     Returns:
-        List of task dictionaries.
+        Dictionary containing tasks list, count, and filter.
     """
     with Session(engine) as session:
         query = select(Task).where(Task.user_id == user_id)
@@ -122,23 +154,28 @@ async def list_tasks(
             query = query.where(Task.completed == True)
 
         tasks = session.exec(query).all()
-        return [
+        task_list = [
             {
-                "id": task.id,
+                "id": str(task.id),
                 "title": task.title,
                 "description": task.description or "",
                 "completed": task.completed,
             }
             for task in tasks
         ]
+        return {
+            "tasks": task_list,
+            "count": len(task_list),
+            "filter": status,
+        }
 
 
-@function_tool
-async def complete_task(user_id: str, task_id: int) -> dict:
+@mcp.tool()
+async def complete_task(user_id: str, task_id: str) -> dict[str, Any]:
     """Mark a task as complete.
 
     Args:
-        user_id: The user's unique identifier.
+        user_id: The unique identifier of the user.
         task_id: The ID of the task to complete.
 
     Returns:
@@ -148,28 +185,24 @@ async def complete_task(user_id: str, task_id: int) -> dict:
         task = session.get(Task, task_id)
 
         if not task or task.user_id != user_id:
-            return {
-                "task_id": task_id,
-                "status": "error",
-                "error": "Task not found",
-            }
+            return {"error": "Task not found", "task_id": task_id}
 
         task.completed = True
         session.add(task)
         session.commit()
         return {
-            "task_id": task.id,
+            "task_id": str(task.id),
             "status": "completed",
             "title": task.title,
         }
 
 
-@function_tool
-async def delete_task(user_id: str, task_id: int) -> dict:
+@mcp.tool()
+async def delete_task(user_id: str, task_id: str) -> dict[str, Any]:
     """Delete a task.
 
     Args:
-        user_id: The user's unique identifier.
+        user_id: The unique identifier of the user.
         task_id: The ID of the task to delete.
 
     Returns:
@@ -179,11 +212,7 @@ async def delete_task(user_id: str, task_id: int) -> dict:
         task = session.get(Task, task_id)
 
         if not task or task.user_id != user_id:
-            return {
-                "task_id": task_id,
-                "status": "error",
-                "error": "Task not found",
-            }
+            return {"error": "Task not found", "task_id": task_id}
 
         title = task.title
         session.delete(task)
@@ -195,17 +224,17 @@ async def delete_task(user_id: str, task_id: int) -> dict:
         }
 
 
-@function_tool
+@mcp.tool()
 async def update_task(
     user_id: str,
-    task_id: int,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-) -> dict:
+    task_id: str,
+    title: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
     """Update a task's details.
 
     Args:
-        user_id: The user's unique identifier.
+        user_id: The unique identifier of the user.
         task_id: The ID of the task to update.
         title: New title (optional).
         description: New description (optional).
@@ -217,11 +246,7 @@ async def update_task(
         task = session.get(Task, task_id)
 
         if not task or task.user_id != user_id:
-            return {
-                "task_id": task_id,
-                "status": "error",
-                "error": "Task not found",
-            }
+            return {"error": "Task not found", "task_id": task_id}
 
         if title is not None:
             task.title = title
@@ -231,24 +256,38 @@ async def update_task(
         session.add(task)
         session.commit()
         return {
-            "task_id": task.id,
+            "task_id": str(task.id),
             "status": "updated",
             "title": task.title,
         }
+
+
+def main():
+    """Run the MCP server."""
+    port = int(os.environ.get("MCP_SERVER_PORT", "8001"))
+    print(f"Starting MCP Server on port {port}...")
+    mcp.run(transport="streamable-http", port=port)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-### 3. Agent Configuration
+### 3. Agent Configuration (Connects to MCP Server)
 
 ```python
 # app/chat/agent.py
-from agents import Agent
-from app.chat.tools import (
-    add_task,
-    list_tasks,
-    complete_task,
-    delete_task,
-    update_task,
-)
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from agents import Agent, Runner
+from agents.mcp import MCPServerStreamableHttp
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8001/mcp")
 
 INSTRUCTIONS = """You are a friendly todo assistant that helps users manage their tasks.
 
@@ -279,29 +318,45 @@ User: "Done with task 1"
 You: [call complete_task(task_id=1)] → "Nice work! 'Buy groceries' is complete."
 """
 
-agent = Agent(
-    name="Todo Assistant",
-    instructions=INSTRUCTIONS,
-    tools=[add_task, list_tasks, complete_task, delete_task, update_task],
-)
+
+@asynccontextmanager
+async def create_agent() -> AsyncGenerator[Agent, None]:
+    """Create agent connected to MCP server."""
+    async with MCPServerStreamableHttp(
+        name="Todo MCP Server",
+        params={"url": MCP_SERVER_URL},
+        cache_tools_list=True,
+    ) as mcp_server:
+        agent = Agent(
+            name="Todo Assistant",
+            instructions=INSTRUCTIONS,
+            mcp_servers=[mcp_server],
+        )
+        yield agent
 ```
 
-### 4. Chat Endpoint
+### 4. Chat Endpoint (Uses MCP-Connected Agent)
 
 ```python
 # app/routers/chat.py
+import os
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
 from sqlmodel import Session, select
 from agents import Runner
+from agents.mcp import MCPServerStreamableHttp
 
 from app.db import get_session
-from app.chat.agent import agent
 from app.models.chat import Conversation, Message
 from app.auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/{user_id}", tags=["chat"])
+
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8001/mcp")
+
+AGENT_INSTRUCTIONS = """..."""  # Same as above
 
 
 class ChatRequest(BaseModel):
@@ -336,13 +391,6 @@ async def chat(
         session.commit()
         session.refresh(conversation)
 
-    # Get history
-    history = session.exec(
-        select(Message)
-        .where(Message.conversation_id == conversation.id)
-        .order_by(Message.created_at)
-    ).all()
-
     # Store user message
     user_msg = Message(
         conversation_id=conversation.id,
@@ -352,12 +400,23 @@ async def chat(
     )
     session.add(user_msg)
 
-    # Run agent
-    result = await Runner.run(
-        agent,
-        input=request.message,
-        context={"user_id": user_id},
-    )
+    # Run agent with MCP server connection
+    async with MCPServerStreamableHttp(
+        name="Todo MCP Server",
+        params={"url": MCP_SERVER_URL},
+    ) as mcp_server:
+        from agents import Agent
+
+        agent = Agent(
+            name="Todo Assistant",
+            instructions=AGENT_INSTRUCTIONS,
+            mcp_servers=[mcp_server],
+        )
+        result = await Runner.run(
+            agent,
+            input=request.message,
+            context={"user_id": user_id},
+        )
 
     # Store assistant response
     assistant_msg = Message(
@@ -375,78 +434,110 @@ async def chat(
     )
 ```
 
-## BAD: Anti-Patterns to Avoid
+### 5. Running the Application
 
-### 1. Hardcoded API Keys
+```bash
+# Terminal 1: Start MCP Server
+cd backend
+python -m app.mcp_server
+# Output: Starting MCP Server on port 8001...
 
-```python
-# BAD: Never do this!
-from openai import OpenAI
-client = OpenAI(api_key="sk-1234567890abcdef")
+# Terminal 2: Start FastAPI Backend
+cd backend
+uvicorn app.main:app --reload --port 8000
+# Output: Uvicorn running on http://127.0.0.1:8000
 
-# GOOD: Use environment variables
-import os
-from openai import OpenAI
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+# Terminal 3: Start Frontend
+cd frontend
+npm run dev
+# Output: ready on http://localhost:3000
 ```
 
-### 2. No Error Handling in Tools
+## BAD: Anti-Patterns to Avoid
+
+### 1. Using @function_tool Instead of MCP Server
+
+```python
+# BAD: Not MCP standard, won't follow hackathon requirements
+from agents import function_tool, Agent
+
+@function_tool
+async def add_task(user_id: str, title: str) -> dict:
+    """Add a task."""
+    return {"task_id": 1, "status": "created"}
+
+agent = Agent(
+    name="Assistant",
+    tools=[add_task],  # Direct function reference, NOT MCP!
+)
+```
+
+```python
+# GOOD: Use @mcp.tool() in separate MCP server
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("todo-server")
+
+@mcp.tool()
+async def add_task(user_id: str, title: str) -> dict:
+    """Add a task."""
+    return {"task_id": 1, "status": "created"}
+
+# Then connect agent to MCP server
+agent = Agent(
+    name="Assistant",
+    mcp_servers=[mcp_server],  # MCP protocol connection
+)
+```
+
+### 2. Hardcoded MCP Server URL
+
+```python
+# BAD: Hardcoded URL
+async with MCPServerStreamableHttp(
+    name="Server",
+    params={"url": "http://localhost:8001/mcp"},  # Hardcoded!
+) as server:
+    ...
+
+# GOOD: Use environment variable
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8001/mcp")
+async with MCPServerStreamableHttp(
+    name="Server",
+    params={"url": MCP_SERVER_URL},
+) as server:
+    ...
+```
+
+### 3. No Error Handling in MCP Tools
 
 ```python
 # BAD: Crashes on missing task
-@function_tool
-def complete_task(task_id: int) -> dict:
+@mcp.tool()
+async def complete_task(user_id: str, task_id: str) -> dict:
     task = session.get(Task, task_id)
-    task.completed = True  # NoneType error if task doesn't exist!
+    task.completed = True  # NoneType error if not found!
     return {"status": "done"}
 
 # GOOD: Handle missing resources
-@function_tool
-def complete_task(user_id: str, task_id: int) -> dict:
+@mcp.tool()
+async def complete_task(user_id: str, task_id: str) -> dict:
     task = session.get(Task, task_id)
     if not task or task.user_id != user_id:
-        return {"status": "error", "error": "Task not found"}
+        return {"error": "Task not found", "task_id": task_id}
     task.completed = True
     return {"status": "completed", "title": task.title}
 ```
 
-### 3. Vague Agent Instructions
+## Comparison: MCP Server vs Function Tools
 
-```python
-# BAD: Agent doesn't know what to do
-agent = Agent(
-    name="Assistant",
-    instructions="Help with tasks",
-    tools=[add_task],
-)
-
-# GOOD: Clear, specific instructions
-agent = Agent(
-    name="Todo Assistant",
-    instructions="""You help users manage tasks.
-
-    When user says "add X" → use add_task(title=X)
-    When user asks "what do I need to do" → use list_tasks(status="pending")
-    Always confirm actions with friendly messages.""",
-    tools=[add_task, list_tasks],
-)
-```
-
-### 4. Missing User Authorization
-
-```python
-# BAD: Anyone can access any user's tasks
-@function_tool
-def list_tasks(user_id: str) -> list:
-    return get_all_tasks(user_id)  # No verification!
-
-# GOOD: Verify in endpoint, pass validated user_id
-@router.post("/chat")
-async def chat(user_id: str, current_user = Depends(get_current_user)):
-    if current_user.id != user_id:
-        raise HTTPException(status_code=403)
-    # Now user_id is verified
-```
+| Aspect | MCP Server (@mcp.tool) | Function Tools (@function_tool) |
+|--------|------------------------|--------------------------------|
+| Protocol | MCP Standard | OpenAI-specific |
+| Architecture | Separate process | Same process |
+| Reusability | Any MCP client | This agent only |
+| Hackathon | **REQUIRED** | Not recommended |
+| Setup | Two processes | Single process |
 
 ## Example Conversation Flow
 
@@ -454,8 +545,8 @@ async def chat(user_id: str, current_user = Depends(get_current_user)):
 User: "I need to remember to buy groceries"
 
 Agent thinks: User wants to add a task
-Agent calls: add_task(user_id="user123", title="Buy groceries")
-Tool returns: {"task_id": 5, "status": "created", "title": "Buy groceries"}
+Agent calls MCP: add_task(user_id="user123", title="Buy groceries")
+MCP returns: {"task_id": "5", "status": "created", "title": "Buy groceries"}
 
 Agent responds: "Done! I've added 'Buy groceries' to your list (Task #5).
                 Would you like to add any details?"
@@ -465,11 +556,15 @@ Agent responds: "Done! I've added 'Buy groceries' to your list (Task #5).
 User: "Show me what I need to do"
 
 Agent thinks: User wants to see pending tasks
-Agent calls: list_tasks(user_id="user123", status="pending")
-Tool returns: [
-    {"id": 3, "title": "Call mom", "completed": false},
-    {"id": 5, "title": "Buy groceries", "completed": false}
-]
+Agent calls MCP: list_tasks(user_id="user123", status="pending")
+MCP returns: {
+    "tasks": [
+        {"id": "3", "title": "Call mom", "completed": false},
+        {"id": "5", "title": "Buy groceries", "completed": false}
+    ],
+    "count": 2,
+    "filter": "pending"
+}
 
 Agent responds: "Here are your pending tasks:
                 • Task #3: Call mom
@@ -482,8 +577,8 @@ Agent responds: "Here are your pending tasks:
 User: "I called mom"
 
 Agent thinks: User completed the "Call mom" task
-Agent calls: complete_task(user_id="user123", task_id=3)
-Tool returns: {"task_id": 3, "status": "completed", "title": "Call mom"}
+Agent calls MCP: complete_task(user_id="user123", task_id="3")
+MCP returns: {"task_id": "3", "status": "completed", "title": "Call mom"}
 
 Agent responds: "Great job! 'Call mom' is now marked as complete.
                 You still have 'Buy groceries' pending."
@@ -525,3 +620,12 @@ def test_chat_unauthorized(client: TestClient, auth_headers: dict):
     )
     assert response.status_code == 403
 ```
+
+## Key Takeaways
+
+1. **Use @mcp.tool() in a standalone MCP server** (mcp-server.py.tpl)
+2. **Connect agent to MCP server** using `MCPServerStreamableHttp`
+3. **Run MCP server separately** from FastAPI backend
+4. **Don't use @function_tool** for hackathon - it's not MCP standard
+5. **Handle errors gracefully** in MCP tools
+6. **Use environment variables** for configuration
