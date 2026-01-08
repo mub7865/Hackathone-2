@@ -1,0 +1,98 @@
+# Global settings
+global:
+  environment: production
+  namespace: todo-app
+
+# Backend deployment
+backend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: todo-backend
+    tag: v1.1.0
+    pullPolicy: Never
+  service:
+    type: NodePort
+    port: 8000
+    nodePort: 30001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  health:
+    liveness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# Frontend deployment
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: todo-frontend
+    tag: v1.1.0
+    pullPolicy: Never
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  health:
+    liveness:
+      path: /
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# Configuration (ConfigMap)
+config:
+  backendUrl: http://backend-service:8000
+  frontendUrl: http://frontend-service:3000
+  corsOrigins: '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:30000", "http://127.0.0.1:30000", "http://localhost:8000", "https://calm-orbit-todo.vercel.app"]'
+  logLevel: info
+  environment: production
+  # Use relative URL so frontend API calls go through middleware rewrite
+  # The middleware will catch /api/v1/* and forward to backend service
+  nextPublicApiUrl: ""
+
+# Feature flags configuration
+featureFlags:
+  newAuth: false
+  newChat: false
+  rollbackAuth: false
+  rollbackChat: false
+
+# Migration control
+authMigration:
+  enabled: true
+  enableLegacyTokens: true
+  legacyTokenCutoffDate: "2026-01-15T00:00:00Z"
+
+# PostgreSQL deployment (disabled - using Neon cloud DB)
+postgres:
+  enabled: false

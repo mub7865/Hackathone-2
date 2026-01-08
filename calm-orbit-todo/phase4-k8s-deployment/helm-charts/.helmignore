@@ -1,0 +1,56 @@
+# Patterns to ignore when packaging the chart
+# Source: https://helm.sh/docs/topics/chart_best_practices/
+
+# Git related
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (if chart has node dependencies)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Test coverage
+coverage/
+.coverage
+*.cover
