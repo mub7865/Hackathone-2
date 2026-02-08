@@ -1,0 +1,112 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { getAccessToken } from '@/lib/auth/client';
+
+/**
+ * ChatKit page component using OpenAI ChatKit Web Component
+ * Feature: 007-ai-chatbot-phase3 (ChatKit integration)
+ * Feature: 009-compliance-fixes (ChatKit with Better Auth)
+ *
+ * Uses the native <openai-chatkit> web component
+ * Integrates with Better Auth JWT authentication
+ * Connects to existing backend API endpoints
+ */
+export function ChatKitPage() {
+  const chatkitRef = useRef<any>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const initChatKit = async () => {
+      try {
+        // Get authentication token
+        const token = await getAccessToken();
+        if (!token) {
+          setError('Not authenticated. Please log in.');
+          setIsInitializing(false);
+          return;
+        }
+
+        // Wait for ChatKit web component to be defined
+        if (typeof window !== 'undefined' && window.customElements) {
+          await window.customElements.whenDefined('openai-chatkit');
+        }
+
+        // Configure ChatKit element
+        if (chatkitRef.current) {
+          chatkitRef.current.setAttribute('api-url', '/api/v1/chat');
+          chatkitRef.current.setAttribute('client-secret', token);
+
+          // Listen for ready event
+          chatkitRef.current.addEventListener('chatkit.ready', () => {
+            console.log('ChatKit ready');
+            setIsInitializing(false);
+          });
+
+          // Listen for error events
+          chatkitRef.current.addEventListener('chatkit.error', (e: any) => {
+            console.error('ChatKit error:', e.detail);
+            setError(e.detail?.message || 'Chat initialization failed');
+            setIsInitializing(false);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to initialize ChatKit:', err);
+        setError('Failed to initialize chat. Please try again.');
+        setIsInitializing(false);
+      }
+    };
+
+    initChatKit();
+
+    // Cleanup
+    return () => {
+      if (chatkitRef.current) {
+        chatkitRef.current.removeEventListener('chatkit.ready', () => {});
+        chatkitRef.current.removeEventListener('chatkit.error', () => {});
+      }
+    };
+  }, []);
+
+  if (isInitializing) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-border-subtle border-t-accent-primary rounded-full animate-spin" />
+          <p className="text-text-muted">Loading ChatKit...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-accent-error mb-2">Failed to initialize chat</p>
+          <p className="text-text-muted text-sm">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-accent-primary text-white rounded-md hover:bg-accent-hover"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-hidden">
+        {/* OpenAI ChatKit Web Component */}
+        <openai-chatkit
+          ref={chatkitRef}
+          className="w-full h-full"
+          style={{ display: 'block', width: '100%', height: '100%' }}
+        />
+      </div>
+    </div>
+  );
+}
