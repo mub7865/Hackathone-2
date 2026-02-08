@@ -1,0 +1,119 @@
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-kafka
+  namespace: calm-orbit
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  # Kafka broker configuration
+  - name: brokers
+    value: "kafka.calm-orbit.svc.cluster.local:9092"
+
+  # Consumer configuration
+  - name: consumerGroup
+    value: "todo-app-consumer-group"
+
+  - name: clientId
+    value: "todo-app-dapr-client"
+
+  - name: authType
+    value: "none"  # Use "password" or "certificate" for production
+
+  # Topic configuration
+  - name: initialOffset
+    value: "newest"  # Start from newest messages for new consumers
+
+  - name: maxMessageBytes
+    value: "1024000"  # 1MB max message size
+
+  # Performance tuning
+  - name: consumeRetryInterval
+    value: "200ms"
+
+  - name: version
+    value: "2.8.0"
+
+  # Idempotency
+  - name: enableIdempotence
+    value: "true"
+
+  # Compression
+  - name: compressionType
+    value: "snappy"
+
+  # Retry configuration
+  - name: maxRetries
+    value: "3"
+
+  - name: retryBackoff
+    value: "100ms"
+
+  # Session timeout
+  - name: sessionTimeout
+    value: "10s"
+
+  - name: heartbeatInterval
+    value: "3s"
+
+  # Rebalance timeout
+  - name: rebalanceTimeout
+    value: "60s"
+
+  # Consumer fetch configuration
+  - name: fetchMin
+    value: "1"
+
+  - name: fetchDefault
+    value: "1048576"  # 1MB
+
+  # Producer configuration
+  - name: producerAcks
+    value: "1"  # Wait for leader acknowledgment
+
+  - name: producerTimeout
+    value: "10s"
+
+  - name: producerBatchSize
+    value: "16384"  # 16KB
+
+  - name: producerLinger
+    value: "10ms"
+
+  # TLS configuration (for production)
+  # - name: skipVerify
+  #   value: "false"
+  # - name: caCert
+  #   secretKeyRef:
+  #     name: kafka-tls
+  #     key: ca.crt
+  # - name: clientCert
+  #   secretKeyRef:
+  #     name: kafka-tls
+  #     key: client.crt
+  # - name: clientKey
+  #   secretKeyRef:
+  #     name: kafka-tls
+  #     key: client.key
+
+  # SASL configuration (for production)
+  # - name: saslUsername
+  #   secretKeyRef:
+  #     name: kafka-credentials
+  #     key: username
+  # - name: saslPassword
+  #   secretKeyRef:
+  #     name: kafka-credentials
+  #     key: password
+  # - name: saslMechanism
+  #   value: "PLAIN"  # or "SCRAM-SHA-256", "SCRAM-SHA-512"
+
+scopes:
+- calm-orbit-backend
+- calm-orbit-notification-service
+- calm-orbit-recurring-service
+
+scopes:
+- calm-orbit-backend

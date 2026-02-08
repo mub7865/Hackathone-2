@@ -1,0 +1,135 @@
+---
+# Redpanda (Kafka-compatible) for local testing
+# Lightweight alternative to Kafka, perfect for Minikube
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: calm-orbit
+  labels:
+    app: redpanda
+spec:
+  type: ClusterIP
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+    - name: admin
+      port: 9644
+      targetPort: 9644
+    - name: pandaproxy
+      port: 8082
+      targetPort: 8082
+  selector:
+    app: redpanda
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: calm-orbit
+spec:
+  serviceName: kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+      - name: redpanda
+        image: docker.redpanda.com/redpandadata/redpanda:v23.3.3
+        command:
+          - /usr/bin/rpk
+          - redpanda
+          - start
+          - --smp=1
+          - --memory=512M
+          - --reserve-memory=0M
+          - --overprovisioned
+          - --node-id=0
+          - --check=false
+          - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+          - --advertise-kafka-addr=PLAINTEXT://kafka.calm-orbit.svc.cluster.local:9092
+        ports:
+          - containerPort: 9092
+            name: kafka
+          - containerPort: 9644
+            name: admin
+          - containerPort: 8082
+            name: pandaproxy
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+          - name: datadir
+            mountPath: /var/lib/redpanda/data
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+
+---
+# Kafka Topics Job - Creates topics after Redpanda is ready
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-setup
+  namespace: calm-orbit
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kafka-topics
+        image: docker.redpanda.com/redpandadata/redpanda:v23.3.3
+        command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Waiting for Kafka to be ready..."
+            sleep 30
+
+            echo "Creating Kafka topics..."
+
+            # Task Events Topic
+            /usr/bin/rpk topic create task-events \
+              --brokers kafka.calm-orbit.svc.cluster.local:9092 \
+              --partitions 3 \
+              --replicas 1 || echo "Topic already exists"
+
+            # Reminders Topic
+            /usr/bin/rpk topic create reminders \
+              --brokers kafka.calm-orbit.svc.cluster.local:9092 \
+              --partitions 3 \
+              --replicas 1 || echo "Topic already exists"
+
+            # Recurring Tasks Topic
+            /usr/bin/rpk topic create recurring-tasks \
+              --brokers kafka.calm-orbit.svc.cluster.local:9092 \
+              --partitions 3 \
+              --replicas 1 || echo "Topic already exists"
+
+            # Task Updates Topic
+            /usr/bin/rpk topic create task-updates \
+              --brokers kafka.calm-orbit.svc.cluster.local:9092 \
+              --partitions 3 \
+              --replicas 1 || echo "Topic already exists"
+
+            echo "Topics created successfully!"
+
+            # List all topics
+            echo "Available topics:"
+            /usr/bin/rpk topic list --brokers kafka.calm-orbit.svc.cluster.local:9092

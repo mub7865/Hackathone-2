@@ -1,0 +1,88 @@
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calm-orbit-frontend
+  namespace: calm-orbit
+  labels:
+    app: frontend
+    component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        component: web
+    spec:
+      containers:
+      - name: frontend
+        image: calm-orbit-frontend:latest
+        imagePullPolicy: Never  # For Minikube local images
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        # API URLs
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://localhost:30800"
+        - name: NEXT_PUBLIC_BACKEND_URL
+          value: "http://calm-orbit-backend:8000"
+
+        # Feature Flags
+        - name: NEXT_PUBLIC_FEATURE_NEW_CHAT
+          valueFrom:
+            configMapKeyRef:
+              name: calm-orbit-config
+              key: NEXT_PUBLIC_FEATURE_NEW_CHAT
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: calm-orbit-frontend
+  namespace: calm-orbit
+  labels:
+    app: frontend
+    component: web
+spec:
+  type: NodePort
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30300
+    protocol: TCP
+    name: http
+  selector:
+    app: frontend

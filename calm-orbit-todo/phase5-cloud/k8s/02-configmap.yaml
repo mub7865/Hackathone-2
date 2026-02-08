@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: calm-orbit-config
+  namespace: calm-orbit
+data:
+  # Environment
+  ENVIRONMENT: "development"
+
+  # JWT Configuration
+  JWT_ALGORITHM: "HS256"
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+
+  # CORS Origins
+  CORS_ORIGINS: "http://localhost:3000,http://calm-orbit-frontend:3000"
+
+  # Database Configuration
+  DATABASE_HOST: "calm-orbit-postgres"
+  DATABASE_PORT: "5432"
+
+  # Frontend Configuration
+  NEXT_PUBLIC_FEATURE_NEW_CHAT: "true"

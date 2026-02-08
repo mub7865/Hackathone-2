@@ -1,0 +1,188 @@
+---
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: dapr-config
+  namespace: default
+spec:
+  # Enable metrics
+  metric:
+    enabled: true
+
+  # Tracing configuration
+  tracing:
+    samplingRate: "1"
+    zipkin:
+      endpointAddress: "http://zipkin:9411/api/v2/spans"
+
+  # Metrics configuration
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+  # HTTP pipeline for metrics
+  httpPipeline:
+    handlers:
+    - name: metrics
+      type: middleware.http.metrics
+
+  # Access control
+  accessControl:
+    defaultAction: allow
+    trustDomain: "public"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dapr-metrics-config
+  namespace: default
+data:
+  config.yaml: |
+    # Dapr Metrics Configuration
+
+    # Metrics to collect
+    metrics:
+      # HTTP metrics
+      - name: dapr_http_server_request_count
+        description: "Total number of HTTP requests"
+        type: counter
+        labels:
+          - app_id
+          - method
+          - path
+          - status_code
+
+      - name: dapr_http_server_request_duration_ms
+        description: "HTTP request duration in milliseconds"
+        type: histogram
+        labels:
+          - app_id
+          - method
+          - path
+
+      # gRPC metrics
+      - name: dapr_grpc_server_request_count
+        description: "Total number of gRPC requests"
+        type: counter
+        labels:
+          - app_id
+          - method
+          - status_code
+
+      - name: dapr_grpc_server_request_duration_ms
+        description: "gRPC request duration in milliseconds"
+        type: histogram
+        labels:
+          - app_id
+          - method
+
+      # Pub/Sub metrics
+      - name: dapr_pubsub_published_count
+        description: "Total number of messages published"
+        type: counter
+        labels:
+          - app_id
+          - topic
+          - pubsub
+
+      - name: dapr_pubsub_consumed_count
+        description: "Total number of messages consumed"
+        type: counter
+        labels:
+          - app_id
+          - topic
+          - pubsub
+
+      - name: dapr_pubsub_publish_duration_ms
+        description: "Publish duration in milliseconds"
+        type: histogram
+        labels:
+          - app_id
+          - topic
+          - pubsub
+
+      # State store metrics
+      - name: dapr_state_operation_count
+        description: "Total number of state operations"
+        type: counter
+        labels:
+          - app_id
+          - operation
+          - state_store
+
+      - name: dapr_state_operation_duration_ms
+        description: "State operation duration in milliseconds"
+        type: histogram
+        labels:
+          - app_id
+          - operation
+          - state_store
+
+      # Service invocation metrics
+      - name: dapr_service_invocation_count
+        description: "Total number of service invocations"
+        type: counter
+        labels:
+          - app_id
+          - target_app_id
+          - method
+
+      - name: dapr_service_invocation_duration_ms
+        description: "Service invocation duration in milliseconds"
+        type: histogram
+        labels:
+          - app_id
+          - target_app_id
+          - method
+
+      # Component metrics
+      - name: dapr_component_loaded
+        description: "Number of loaded components"
+        type: gauge
+        labels:
+          - app_id
+          - component_type
+
+      # Sidecar metrics
+      - name: dapr_sidecar_injected
+        description: "Number of sidecars injected"
+        type: gauge
+        labels:
+          - namespace
+
+      - name: dapr_sidecar_cpu_usage
+        description: "Sidecar CPU usage"
+        type: gauge
+        labels:
+          - app_id
+
+      - name: dapr_sidecar_memory_usage_mb
+        description: "Sidecar memory usage in MB"
+        type: gauge
+        labels:
+          - app_id
+
+    # Metric collection interval
+    collection_interval: 15s
+
+    # Metric retention
+    retention: 30d
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapr-metrics
+  namespace: default
+  labels:
+    app: dapr-metrics
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    name: metrics
+  selector:
+    dapr.io/enabled: "true"

@@ -1,0 +1,171 @@
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calm-orbit-backend
+  namespace: calm-orbit
+  labels:
+    app: backend
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        component: api
+    spec:
+      containers:
+      - name: backend
+        image: calm-orbit-backend:latest
+        imagePullPolicy: Never  # For Minikube local images
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        # Database URL
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@calm-orbit-postgres:5432/$(POSTGRES_DB)"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: calm-orbit-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: calm-orbit-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: calm-orbit-secrets
+              key: POSTGRES_DB
+
+        # JWT Configuration
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: calm-orbit-secrets
+              key: JWT_SECRET_KEY
+        - name: JWT_ALGORITHM
+          valueFrom:
+            configMapKeyRef:
+              name: calm-orbit-config
+              key: JWT_ALGORITHM
+        - name: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+          valueFrom:
+            configMapKeyRef:
+              name: calm-orbit-config
+              key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+
+        # CORS Configuration
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: calm-orbit-config
+              key: CORS_ORIGINS
+
+        # Environment
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: calm-orbit-config
+              key: ENVIRONMENT
+
+        # OpenAI API Key (optional)
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: calm-orbit-secrets
+              key: OPENAI_API_KEY
+              optional: true
+
+        # Phase 5: Kafka/Redpanda Configuration
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka.calm-orbit.svc.cluster.local:9092"
+        - name: KAFKA_TOPIC_TASK_EVENTS
+          value: "task-events"
+        - name: KAFKA_TOPIC_REMINDERS
+          value: "reminders"
+        - name: KAFKA_TOPIC_TASK_UPDATES
+          value: "task-updates"
+        - name: KAFKA_CONSUMER_GROUP
+          value: "phase5-backend"
+
+        # Phase 5: Feature Flags
+        - name: ENABLE_EVENT_PUBLISHING
+          value: "true"
+        - name: ENABLE_NOTIFICATIONS
+          value: "true"
+        - name: ENABLE_AUDIT_LOGGING
+          value: "true"
+
+        # Phase 5: Dapr Configuration
+        - name: DAPR_HTTP_PORT
+          value: "3500"
+        - name: DAPR_GRPC_PORT
+          value: "50001"
+        - name: DAPR_PUBSUB_NAME
+          value: "pubsub-kafka"
+        - name: DAPR_STATE_STORE_NAME
+          value: "state-postgresql"
+
+        # Phase 5: SendGrid (optional - for real emails)
+        - name: SENDGRID_API_KEY
+          value: ""
+        - name: SENDGRID_FROM_EMAIL
+          value: "noreply@calm-orbit-todo.com"
+        - name: SENDGRID_FROM_NAME
+          value: "Calm Orbit Todo"
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: calm-orbit-backend
+  namespace: calm-orbit
+  labels:
+    app: backend
+    component: api
+spec:
+  type: NodePort
+  ports:
+  - port: 8000
+    targetPort: 8000
+    nodePort: 30800
+    protocol: TCP
+    name: http
+  selector:
+    app: backend

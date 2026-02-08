@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recurring-service
+  namespace: default
+  labels:
+    app: recurring-service
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recurring-service
+  template:
+    metadata:
+      labels:
+        app: recurring-service
+        version: v1
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "recurring-service"
+        dapr.io/app-port: "8001"
+        dapr.io/log-level: "info"
+        dapr.io/enable-metrics: "true"
+        dapr.io/metrics-port: "9090"
+    spec:
+      containers:
+      - name: recurring-service
+        image: todo-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: connectionString
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DAPR_HTTP_PORT
+          value: "3500"
+        - name: DAPR_GRPC_PORT
+          value: "50001"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: KAFKA_TOPIC_TASK_EVENTS
+          value: "task-events"
+        - name: KAFKA_CONSUMER_GROUP
+          value: "recurring-service"
+        - name: ENABLE_EVENT_PUBLISHING
+          value: "true"
+        command: ["python", "-m", "app.schedulers.recurring_scheduler"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recurring-service
+  namespace: default
+  labels:
+    app: recurring-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: recurring-service

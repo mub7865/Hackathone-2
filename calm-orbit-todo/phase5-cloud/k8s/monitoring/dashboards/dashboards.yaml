@@ -1,0 +1,320 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: default
+data:
+  todo-app-overview.json: |
+    {
+      "dashboard": {
+        "title": "Todo App Overview",
+        "tags": ["todo-app", "overview"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "HTTP Request Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])",
+                "legendFormat": "{{method}} {{endpoint}} - {{status}}"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "HTTP Request Latency (P95)",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{method}} {{endpoint}}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Task Operations",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(task_operations_total[5m])",
+                "legendFormat": "{{operation}} - {{status}}"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Active Tasks by Status",
+            "type": "piechart",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(tasks_total) by (status)",
+                "legendFormat": "{{status}}"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Event Publishing Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_published_total[5m])",
+                "legendFormat": "{{event_type}} - {{topic}}"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Event Consumption Rate",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_consumed_total[5m])",
+                "legendFormat": "{{event_type}} - {{consumer_group}}"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Database Query Latency (P95)",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{operation}} - {{table}}"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "title": "Database Connections",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "db_connections_active",
+                "legendFormat": "Active"
+              },
+              {
+                "expr": "db_connections_idle",
+                "legendFormat": "Idle"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "title": "WebSocket Connections",
+            "type": "stat",
+            "gridPos": {"x": 0, "y": 32, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "websocket_connections_active"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "title": "Active Users",
+            "type": "stat",
+            "gridPos": {"x": 6, "y": 32, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "users_active_total"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "title": "Tasks Completed Today",
+            "type": "stat",
+            "gridPos": {"x": 12, "y": 32, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "tasks_completed_today"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "title": "Notification Success Rate",
+            "type": "gauge",
+            "gridPos": {"x": 18, "y": 32, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "rate(notifications_sent_total[5m]) / (rate(notifications_sent_total[5m]) + rate(notifications_failed_total[5m]))"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+  event-streaming-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Event Streaming Metrics",
+        "tags": ["todo-app", "kafka", "events"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Event Publishing Rate by Topic",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_published_total[5m])",
+                "legendFormat": "{{topic}}"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Event Publish Failures",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_publish_failures_total[5m])",
+                "legendFormat": "{{topic}} - {{error}}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Event Consumption Rate by Consumer Group",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_consumed_total[5m])",
+                "legendFormat": "{{consumer_group}}"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Duplicate Events Detected",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(events_duplicate_total[5m])",
+                "legendFormat": "{{consumer_group}} - {{event_type}}"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Event Publish Latency (P95)",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(events_publish_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{event_type}}"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Event Consumption Latency (P95)",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(events_consumption_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{event_type}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+  dapr-metrics-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Dapr Metrics",
+        "tags": ["todo-app", "dapr"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Dapr HTTP Request Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(dapr_http_server_request_count[5m])",
+                "legendFormat": "{{app_id}} - {{method}} {{path}}"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Dapr Pub/Sub Messages",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(dapr_pubsub_published_count[5m])",
+                "legendFormat": "Published - {{topic}}"
+              },
+              {
+                "expr": "rate(dapr_pubsub_consumed_count[5m])",
+                "legendFormat": "Consumed - {{topic}}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Dapr Service Invocations",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(dapr_service_invocation_count[5m])",
+                "legendFormat": "{{app_id}} -> {{target_app_id}}"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Dapr Sidecar Resource Usage",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "dapr_sidecar_cpu_usage",
+                "legendFormat": "CPU - {{app_id}}"
+              },
+              {
+                "expr": "dapr_sidecar_memory_usage_mb",
+                "legendFormat": "Memory - {{app_id}}"
+              }
+            ]
+          }
+        ]
+      }
+    }

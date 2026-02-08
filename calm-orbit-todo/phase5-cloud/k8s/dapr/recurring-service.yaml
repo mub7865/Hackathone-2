@@ -1,0 +1,55 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: recurring-service-pubsub
+  namespace: default
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: "kafka:9092"
+  - name: consumerGroup
+    value: "recurring-service"
+  - name: clientId
+    value: "recurring-service"
+  - name: authType
+    value: "none"
+  - name: maxMessageBytes
+    value: "1024000"
+scopes:
+- recurring-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: recurring-service-statestore
+  namespace: default
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+      name: postgres-secret
+      key: connectionString
+  - name: tableName
+    value: "dapr_state_recurring"
+  - name: metadataTableName
+    value: "dapr_metadata_recurring"
+  - name: timeoutInSeconds
+    value: "30"
+scopes:
+- recurring-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: recurring-service-task-events
+  namespace: default
+spec:
+  topic: task-events
+  route: /dapr/subscribe/task-events
+  pubsubname: recurring-service-pubsub
+scopes:
+- recurring-service

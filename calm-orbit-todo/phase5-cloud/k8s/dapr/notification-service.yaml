@@ -1,0 +1,67 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: notification-service-pubsub
+  namespace: default
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: "kafka:9092"
+  - name: consumerGroup
+    value: "notification-service"
+  - name: clientId
+    value: "notification-service"
+  - name: authType
+    value: "none"
+  - name: maxMessageBytes
+    value: "1024000"
+scopes:
+- notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: notification-service-statestore
+  namespace: default
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+      name: postgres-secret
+      key: connectionString
+  - name: tableName
+    value: "dapr_state_notification"
+  - name: metadataTableName
+    value: "dapr_metadata_notification"
+  - name: timeoutInSeconds
+    value: "30"
+scopes:
+- notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: notification-service-reminders
+  namespace: default
+spec:
+  topic: reminders
+  route: /dapr/subscribe/reminders
+  pubsubname: notification-service-pubsub
+scopes:
+- notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: notification-service-task-events
+  namespace: default
+spec:
+  topic: task-events
+  route: /dapr/subscribe/task-events
+  pubsubname: notification-service-pubsub
+scopes:
+- notification-service

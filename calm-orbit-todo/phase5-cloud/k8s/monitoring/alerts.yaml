@@ -1,0 +1,293 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alerts
+  namespace: default
+data:
+  alerts.yml: |
+    groups:
+    # Application health alerts
+    - name: application_health
+      interval: 30s
+      rules:
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status="error"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for endpoint {{ $labels.endpoint }}"
+
+      - alert: CriticalErrorRate
+        expr: |
+          rate(http_requests_total{status="error"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for endpoint {{ $labels.endpoint }}"
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High latency detected"
+          description: "P95 latency is {{ $value }}s for endpoint {{ $labels.endpoint }}"
+
+      - alert: ServiceDown
+        expr: |
+          up{job="backend-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Service is down"
+          description: "Backend service {{ $labels.instance }} is down"
+
+    # Database alerts
+    - name: database_health
+      interval: 30s
+      rules:
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High database latency"
+          description: "P95 database query latency is {{ $value }}s for table {{ $labels.table }}"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          db_connections_active / (db_connections_active + db_connections_idle) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of database connections are in use"
+
+      - alert: DatabaseDown
+        expr: |
+          up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database is down"
+          description: "PostgreSQL database is unreachable"
+
+    # Event streaming alerts
+    - name: event_streaming
+      interval: 30s
+      rules:
+      - alert: HighEventPublishFailureRate
+        expr: |
+          rate(events_publish_failures_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "High event publish failure rate"
+          description: "Event publish failure rate is {{ $value }} for topic {{ $labels.topic }}"
+
+      - alert: HighEventConsumptionFailureRate
+        expr: |
+          rate(events_consumption_failures_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "High event consumption failure rate"
+          description: "Event consumption failure rate is {{ $value }} for consumer {{ $labels.consumer_group }}"
+
+      - alert: HighDuplicateEventRate
+        expr: |
+          rate(events_duplicate_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: info
+          component: kafka
+        annotations:
+          summary: "High duplicate event rate"
+          description: "Duplicate event rate is {{ $value }} for consumer {{ $labels.consumer_group }}"
+
+      - alert: KafkaDown
+        expr: |
+          up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Kafka is down"
+          description: "Kafka broker is unreachable"
+
+    # WebSocket alerts
+    - name: websocket_health
+      interval: 30s
+      rules:
+      - alert: HighWebSocketDisconnectionRate
+        expr: |
+          rate(websocket_connections_total{status="disconnected"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+        annotations:
+          summary: "High WebSocket disconnection rate"
+          description: "WebSocket disconnection rate is {{ $value }}"
+
+      - alert: TooManyActiveWebSocketConnections
+        expr: |
+          websocket_connections_active > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+        annotations:
+          summary: "Too many active WebSocket connections"
+          description: "{{ $value }} active WebSocket connections"
+
+    # Notification alerts
+    - name: notification_health
+      interval: 30s
+      rules:
+      - alert: HighNotificationFailureRate
+        expr: |
+          rate(notifications_failed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: notifications
+        annotations:
+          summary: "High notification failure rate"
+          description: "Notification failure rate is {{ $value | humanizePercentage }} for channel {{ $labels.channel }}"
+
+      - alert: HighNotificationRateLimiting
+        expr: |
+          rate(notifications_rate_limited_total[5m]) > 0.2
+        for: 10m
+        labels:
+          severity: info
+          component: notifications
+        annotations:
+          summary: "High notification rate limiting"
+          description: "{{ $value | humanizePercentage }} of notifications are being rate limited"
+
+    # Resource alerts
+    - name: resource_usage
+      interval: 30s
+      rules:
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / node_memory_MemTotal_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Disk space low"
+          description: "Only {{ $value | humanizePercentage }} disk space available on {{ $labels.instance }}"
+
+    # Dapr alerts
+    - name: dapr_health
+      interval: 30s
+      rules:
+      - alert: DaprSidecarDown
+        expr: |
+          up{job="dapr"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: dapr
+        annotations:
+          summary: "Dapr sidecar is down"
+          description: "Dapr sidecar for {{ $labels.pod }} is down"
+
+      - alert: HighDaprPubSubLatency
+        expr: |
+          histogram_quantile(0.95, rate(dapr_pubsub_publish_duration_ms_bucket[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: dapr
+        annotations:
+          summary: "High Dapr pub/sub latency"
+          description: "P95 pub/sub latency is {{ $value }}ms for topic {{ $labels.topic }}"
+
+      - alert: HighDaprServiceInvocationFailureRate
+        expr: |
+          rate(dapr_service_invocation_count{status_code!~"2.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: dapr
+        annotations:
+          summary: "High Dapr service invocation failure rate"
+          description: "Service invocation failure rate is {{ $value | humanizePercentage }}"
+
+    # Business metrics alerts
+    - name: business_metrics
+      interval: 1m
+      rules:
+      - alert: NoTasksCompletedToday
+        expr: |
+          tasks_completed_today == 0 and hour() > 12
+        for: 1h
+        labels:
+          severity: info
+          component: business
+        annotations:
+          summary: "No tasks completed today"
+          description: "No tasks have been completed today after noon"
+
+      - alert: LowUserActivity
+        expr: |
+          users_active_total < 10 and hour() >= 9 and hour() <= 17
+        for: 30m
+        labels:
+          severity: info
+          component: business
+        annotations:
+          summary: "Low user activity"
+          description: "Only {{ $value }} active users during business hours"
