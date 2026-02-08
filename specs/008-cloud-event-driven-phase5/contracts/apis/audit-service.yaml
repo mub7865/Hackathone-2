@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: Audit Service API
+  description: |
+    Microservice that consumes all task events and logs them to the audit_log table for compliance and history tracking.
+    This service is event-driven and does not expose REST endpoints for external clients.
+  version: 1.0.0
+  contact:
+    name: Calm Orbit Todo Team
+    email: team@calm-orbit-todo.example.com
+
+servers:
+  - url: http://audit-service:8003
+    description: Internal Kubernetes service (not exposed externally)
+
+tags:
+  - name: Health
+    description: Health check endpoints for Kubernetes probes
+  - name: Metrics
+    description: Prometheus metrics endpoint
+
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if the service is running
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  service:
+                    type: string
+                    example: "audit-service"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if the service is ready (database connected, Dapr ready)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ready"
+                  database:
+                    type: string
+                    example: "connected"
+                  dapr:
+                    type: string
+                    example: "ready"
+        '503':
+          description: Service is not ready
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus metrics for monitoring
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP audit_events_processed_total Total task events processed
+                  # TYPE audit_events_processed_total counter
+                  audit_events_processed_total{event_type="task.created"} 1234
+                  audit_events_processed_total{event_type="task.updated"} 567
+                  audit_events_processed_total{event_type="task.completed"} 890
+                  audit_events_processed_total{event_type="task.deleted"} 45
+
+                  # HELP audit_log_entries_total Total audit log entries created
+                  # TYPE audit_log_entries_total counter
+                  audit_log_entries_total 2736
+
+                  # HELP audit_processing_duration_seconds Time to process and log event
+                  # TYPE audit_processing_duration_seconds histogram
+                  audit_processing_duration_seconds_bucket{le="0.05"} 2500
+                  audit_processing_duration_seconds_bucket{le="0.1"} 2700
+                  audit_processing_duration_seconds_bucket{le="0.5"} 2736
+
+components:
+  schemas:
+    AuditLogEntry:
+      type: object
+      description: Audit log entry for a task operation
+      properties:
+        id:
+          type: string
+          format: uuid
+        event_id:
+          type: string
+          format: uuid
+          description: Unique event ID from Kafka (for idempotency)
+        event_type:
+          type: string
+          enum: [task.created, task.updated, task.deleted, task.completed]
+        task_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum: [create, update, delete, complete]
+        event_payload:
+          type: object
+          description: Full event data as JSONB
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred
+        processed_at:
+          type: string
+          format: date-time
+          description: When the audit service processed the event
+
+x-event-consumers:
+  - topic: task-events
+    subscription: audit-service-sub
+    event_types:
+      - task.created
+      - task.updated
+      - task.deleted
+      - task.completed
+    description: |
+      Consumes all task events from the task-events topic.
+      When a task event is received, this service:
+      1. Checks if the event has already been processed (idempotency via event_id)
+      2. Extracts event metadata (event_type, task_id, user_id, timestamp)
+      3. Stores the full event payload as JSONB in the audit_log table
+      4. Marks the event as processed in the processed_events table
+      5. Emits metrics for monitoring
+
+      This service provides a complete audit trail for compliance and debugging.
+      All task operations are logged with full event data for forensic analysis.
+
+x-dependencies:
+  - name: Neon Postgres
+    description: Database for audit_log and processed_events tables
+  - name: Dapr Pub/Sub (pubsub.kafka)
+    description: Consumes all task events
+
+x-data-retention:
+  audit_log:
+    retention_period: 90 days
+    cleanup_strategy: Archive to cold storage (S3/DigitalOcean Spaces)
+    cleanup_schedule: Daily at 2 AM UTC
+  processed_events:
+    retention_period: 7 days
+    cleanup_strategy: Hard delete
+    cleanup_schedule: Daily at 3 AM UTC
+
+x-metrics:
+  - name: audit_events_processed_total
+    type: counter
+    labels: [event_type]
+    description: Total task events processed by type
+  - name: audit_log_entries_total
+    type: counter
+    description: Total audit log entries created
+  - name: audit_processing_duration_seconds
+    type: histogram
+    description: Time to process and log each event
+  - name: audit_errors_total
+    type: counter
+    labels: [error_type]
+    description: Total errors during audit logging
+  - name: audit_duplicate_events_total
+    type: counter
+    description: Total duplicate events detected (idempotency check)
+
+x-compliance:
+  purpose: Audit trail for task operations
+  data_classification: Internal
+  retention_requirement: 90 days minimum
+  access_control: Read-only access for compliance team
+  encryption: At-rest encryption via Neon Postgres

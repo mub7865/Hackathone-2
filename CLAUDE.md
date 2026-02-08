@@ -213,5 +213,34 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - Python 3.13+ + FastAPI 0.115+, SQLModel 0.0.22+, Pydantic v2, python-jose (JWT), uvicorn (003-tasks-crud-api)
 - Neon Postgres (async via asyncpg) - already configured (003-tasks-crud-api)
 
+## Phase 5: Cloud-Native Event-Driven Architecture
+
+**IMPORTANT**: Phase 5 implementation requires specialized skills and agents for cloud-native, event-driven architecture.
+
+### Specialized Resources
+
+**Skills** (located in `.claude/skills/`):
+- `cloud-deployment` - Cloud infrastructure and DOKS deployment
+- `docker-containerization` - Container creation and optimization
+- `kubernetes-deployment-patterns` - K8s manifests and deployments
+- `dapr-integration` - Dapr components configuration
+- `kafka-event-streaming` - Event streaming with Kafka/Redpanda
+- `recurring-tasks-scheduling` - Recurring task patterns and schedulers
+- `reminder-notifications` - Multi-channel notification system
+
+**Agents** (located in `.claude/agents/`):
+- `devops-agent` - CI/CD, GitHub Actions, infrastructure automation
+- `event-streaming-agent` - Event-driven architecture implementation
+- `scheduler-agent` - Job scheduling and recurring tasks
+- `notification-agent` - Notification service implementation
+- `testing-agent` - Test automation and coverage
+- `docker-builder` - Docker image creation
+- `kubernetes-deployer` - K8s deployment and troubleshooting
+- `database-agent` - Schema changes and migrations
+- `backend-api-agent` - FastAPI endpoints and services
+
+**Usage**: When implementing Phase 5 tasks, ALWAYS check if a specialized skill or agent exists for that domain and use it instead of manual implementation.
+
 ## Recent Changes
 - 003-tasks-crud-api: Added Python 3.13+ + FastAPI 0.115+, SQLModel 0.0.22+, Pydantic v2, python-jose (JWT), uvicorn
+- Phase 5: Added references to specialized skills and agents for cloud-native implementation

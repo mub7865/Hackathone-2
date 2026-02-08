@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Recurring Task Service API
+  description: |
+    Microservice that consumes task-completed events and automatically creates the next occurrence for recurring tasks.
+    This service is event-driven and does not expose REST endpoints for external clients.
+  version: 1.0.0
+  contact:
+    name: Calm Orbit Todo Team
+    email: team@calm-orbit-todo.example.com
+
+servers:
+  - url: http://recurring-task-service:8001
+    description: Internal Kubernetes service (not exposed externally)
+
+tags:
+  - name: Health
+    description: Health check endpoints for Kubernetes probes
+  - name: Metrics
+    description: Prometheus metrics endpoint
+
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if the service is running (used by Kubernetes liveness probe)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  service:
+                    type: string
+                    example: "recurring-task-service"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2026-01-11T10:30:00Z"
+
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if the service is ready to process events (database connected, Dapr sidecar ready)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ready"
+                  database:
+                    type: string
+                    example: "connected"
+                  dapr:
+                    type: string
+                    example: "ready"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2026-01-11T10:30:00Z"
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "not_ready"
+                  database:
+                    type: string
+                    example: "disconnected"
+                  dapr:
+                    type: string
+                    example: "not_ready"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus metrics for monitoring
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Prometheus metrics in text format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP recurring_task_events_processed_total Total number of task-completed events processed
+                  # TYPE recurring_task_events_processed_total counter
+                  recurring_task_events_processed_total 1234
+
+                  # HELP recurring_task_created_total Total number of recurring tasks created
+                  # TYPE recurring_task_created_total counter
+                  recurring_task_created_total 567
+
+                  # HELP recurring_task_processing_duration_seconds Time spent processing events
+                  # TYPE recurring_task_processing_duration_seconds histogram
+                  recurring_task_processing_duration_seconds_bucket{le="0.1"} 450
+                  recurring_task_processing_duration_seconds_bucket{le="0.5"} 550
+                  recurring_task_processing_duration_seconds_bucket{le="1.0"} 567
+                  recurring_task_processing_duration_seconds_sum 234.5
+                  recurring_task_processing_duration_seconds_count 567
+
+components:
+  schemas:
+    RecurringPattern:
+      type: object
+      description: Recurrence pattern for a recurring task
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "pattern-456e7890-e89b-12d3-a456-426614174111"
+        user_id:
+          type: string
+          format: uuid
+          example: "user-123e4567-e89b-12d3-a456-426614174000"
+        original_task_id:
+          type: string
+          format: uuid
+          example: "task-123e4567-e89b-12d3-a456-426614174000"
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly, custom]
+          example: "daily"
+        interval:
+          type: integer
+          minimum: 1
+          example: 1
+        days_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          example: [1, 3, 5]
+        day_of_month:
+          type: integer
+          minimum: -1
+          maximum: 31
+          example: 15
+        month_of_year:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 6
+        cron_expression:
+          type: string
+          example: "0 9 * * 1-5"
+        end_condition:
+          type: string
+          enum: [date, count, indefinite]
+          example: "count"
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-12-31T23:59:59Z"
+        occurrence_count:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 10
+        current_count:
+          type: integer
+          minimum: 0
+          example: 3
+
+x-event-consumers:
+  - topic: task-events
+    subscription: recurring-task-service-sub
+    event_types:
+      - task.completed
+    description: |
+      Consumes task-completed events from the task-events topic.
+      When a task with a recurring_pattern_id is completed, this service:
+      1. Checks if the event has already been processed (idempotency)
+      2. Retrieves the recurring pattern from the database
+      3. Calculates the next occurrence date based on the pattern
+      4. Checks if the end condition is met (date, count, or indefinite)
+      5. Creates a new task with the same attributes but updated due_date
+      6. Publishes a task.created event to the task-events topic
+      7. Publishes a task_update.recurring_created event to the task-updates topic
+      8. Marks the event as processed in the processed_events table
+
+x-dependencies:
+  - name: Neon Postgres
+    description: Database for storing recurring patterns and processed events
+  - name: Dapr Pub/Sub (pubsub.kafka)
+    description: Consumes task-completed events and publishes task-created events
+  - name: Dapr State Management (state.postgresql)
+    description: Optional state storage for service configuration
+
+x-metrics:
+  - name: recurring_task_events_processed_total
+    type: counter
+    description: Total number of task-completed events processed
+  - name: recurring_task_created_total
+    type: counter
+    description: Total number of recurring tasks created
+  - name: recurring_task_end_condition_met_total
+    type: counter
+    description: Total number of recurring patterns that reached their end condition
+  - name: recurring_task_processing_duration_seconds
+    type: histogram
+    description: Time spent processing each event
+  - name: recurring_task_errors_total
+    type: counter
+    description: Total number of errors during event processing

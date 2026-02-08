@@ -1,0 +1,240 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calm-orbit-todo.example.com/schemas/task-event.v1.json",
+  "title": "Task Event",
+  "description": "Event published when a task is created, updated, deleted, or completed",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "timestamp",
+    "correlation_id",
+    "user_id",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version for backward compatibility",
+      "enum": ["1.0"],
+      "example": "1.0"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event (for idempotency)",
+      "example": "123e4567-e89b-12d3-a456-426614174000"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Type of task event",
+      "enum": [
+        "task.created",
+        "task.updated",
+        "task.deleted",
+        "task.completed"
+      ],
+      "example": "task.created"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the event occurred (UTC)",
+      "example": "2026-01-11T10:30:00Z"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Correlation ID for distributed tracing",
+      "example": "987fcdeb-51a2-43d7-9876-543210fedcba"
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the user who triggered the event",
+      "example": "user-123e4567-e89b-12d3-a456-426614174000"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific payload",
+      "required": ["task_id"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the task",
+          "example": "task-123e4567-e89b-12d3-a456-426614174000"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title",
+          "maxLength": 255,
+          "example": "Daily standup meeting"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Task description",
+          "example": "Team sync at 9 AM"
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status",
+          "enum": ["active", "complete"],
+          "example": "active"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Task priority level",
+          "enum": ["high", "medium", "low"],
+          "default": "medium",
+          "example": "high"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Array of tag strings",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "default": [],
+          "example": ["work", "meetings"]
+        },
+        "due_date": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp for task due date (UTC)",
+          "example": "2026-01-12T09:00:00Z"
+        },
+        "remind_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp for reminder notification (UTC)",
+          "example": "2026-01-12T08:45:00Z"
+        },
+        "recurring_pattern_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "ID of the recurring pattern if this is a recurring task",
+          "example": "pattern-456e7890-e89b-12d3-a456-426614174111"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when task was created (UTC)",
+          "example": "2026-01-11T10:30:00Z"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when task was last updated (UTC)",
+          "example": "2026-01-11T10:30:00Z"
+        },
+        "previous_values": {
+          "type": ["object", "null"],
+          "description": "Previous values for updated fields (only present in task.updated events)",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": ["string", "null"]
+            },
+            "status": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "due_date": {
+              "type": ["string", "null"]
+            },
+            "remind_at": {
+              "type": ["string", "null"]
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0",
+      "event_id": "evt-123e4567-e89b-12d3-a456-426614174000",
+      "event_type": "task.created",
+      "timestamp": "2026-01-11T10:30:00Z",
+      "correlation_id": "corr-987fcdeb-51a2-43d7-9876-543210fedcba",
+      "user_id": "user-123e4567-e89b-12d3-a456-426614174000",
+      "payload": {
+        "task_id": "task-123e4567-e89b-12d3-a456-426614174000",
+        "title": "Daily standup meeting",
+        "description": "Team sync at 9 AM",
+        "status": "active",
+        "priority": "high",
+        "tags": ["work", "meetings"],
+        "due_date": "2026-01-12T09:00:00Z",
+        "remind_at": "2026-01-12T08:45:00Z",
+        "recurring_pattern_id": "pattern-456e7890-e89b-12d3-a456-426614174111",
+        "created_at": "2026-01-11T10:30:00Z",
+        "updated_at": "2026-01-11T10:30:00Z"
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "event_id": "evt-234e5678-e89b-12d3-a456-426614174001",
+      "event_type": "task.updated",
+      "timestamp": "2026-01-11T11:00:00Z",
+      "correlation_id": "corr-987fcdeb-51a2-43d7-9876-543210fedcba",
+      "user_id": "user-123e4567-e89b-12d3-a456-426614174000",
+      "payload": {
+        "task_id": "task-123e4567-e89b-12d3-a456-426614174000",
+        "title": "Daily standup meeting - Updated",
+        "description": "Team sync at 9 AM",
+        "status": "active",
+        "priority": "medium",
+        "tags": ["work", "meetings", "daily"],
+        "due_date": "2026-01-12T09:00:00Z",
+        "remind_at": "2026-01-12T08:45:00Z",
+        "recurring_pattern_id": "pattern-456e7890-e89b-12d3-a456-426614174111",
+        "created_at": "2026-01-11T10:30:00Z",
+        "updated_at": "2026-01-11T11:00:00Z",
+        "previous_values": {
+          "title": "Daily standup meeting",
+          "priority": "high",
+          "tags": ["work", "meetings"]
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "event_id": "evt-345e6789-e89b-12d3-a456-426614174002",
+      "event_type": "task.completed",
+      "timestamp": "2026-01-11T12:00:00Z",
+      "correlation_id": "corr-987fcdeb-51a2-43d7-9876-543210fedcba",
+      "user_id": "user-123e4567-e89b-12d3-a456-426614174000",
+      "payload": {
+        "task_id": "task-123e4567-e89b-12d3-a456-426614174000",
+        "title": "Daily standup meeting - Updated",
+        "description": "Team sync at 9 AM",
+        "status": "complete",
+        "priority": "medium",
+        "tags": ["work", "meetings", "daily"],
+        "due_date": "2026-01-12T09:00:00Z",
+        "remind_at": "2026-01-12T08:45:00Z",
+        "recurring_pattern_id": "pattern-456e7890-e89b-12d3-a456-426614174111",
+        "created_at": "2026-01-11T10:30:00Z",
+        "updated_at": "2026-01-11T12:00:00Z",
+        "previous_values": {
+          "status": "active"
+        }
+      }
+    }
+  ]
+}

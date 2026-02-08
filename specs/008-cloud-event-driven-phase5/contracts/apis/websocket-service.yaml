@@ -1,0 +1,277 @@
+openapi: 3.0.3
+info:
+  title: WebSocket Service API
+  description: |
+    Microservice that provides real-time WebSocket connections for task updates.
+    Consumes task-update events and broadcasts them to connected clients.
+  version: 1.0.0
+  contact:
+    name: Calm Orbit Todo Team
+    email: team@calm-orbit-todo.example.com
+
+servers:
+  - url: ws://websocket-service:8004
+    description: Internal Kubernetes service (exposed via Ingress)
+
+tags:
+  - name: WebSocket
+    description: WebSocket connection endpoints
+  - name: Health
+    description: Health check endpoints for Kubernetes probes
+  - name: Metrics
+    description: Prometheus metrics endpoint
+
+paths:
+  /ws/{user_id}:
+    get:
+      summary: WebSocket connection endpoint
+      description: |
+        Establishes a WebSocket connection for real-time task updates.
+        Client must provide JWT token in Authorization header or as query parameter.
+        Connection is user-specific; clients only receive updates for their own tasks.
+      tags:
+        - WebSocket
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User ID (must match JWT token)
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Bearer token (JWT)
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: JWT token as query parameter (alternative to header)
+      responses:
+        '101':
+          description: Switching Protocols - WebSocket connection established
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+        '403':
+          description: Forbidden - user_id does not match JWT token
+
+  /health/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if the service is running
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  service:
+                    type: string
+                    example: "websocket-service"
+                  active_connections:
+                    type: integer
+                    example: 42
+
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if the service is ready (Dapr ready)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ready"
+                  dapr:
+                    type: string
+                    example: "ready"
+        '503':
+          description: Service is not ready
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus metrics for monitoring
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP websocket_connections_active Current active WebSocket connections
+                  # TYPE websocket_connections_active gauge
+                  websocket_connections_active 42
+
+                  # HELP websocket_connections_total Total WebSocket connections established
+                  # TYPE websocket_connections_total counter
+                  websocket_connections_total 1234
+
+                  # HELP websocket_messages_sent_total Total messages sent to clients
+                  # TYPE websocket_messages_sent_total counter
+                  websocket_messages_sent_total 5678
+
+                  # HELP websocket_events_processed_total Total task-update events processed
+                  # TYPE websocket_events_processed_total counter
+                  websocket_events_processed_total{event_type="task_update.created"} 2000
+                  websocket_events_processed_total{event_type="task_update.updated"} 1500
+
+components:
+  schemas:
+    WebSocketMessage:
+      type: object
+      description: Message sent from server to client via WebSocket
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [task_update, connection_ack, ping, error]
+          description: Message type
+        data:
+          type: object
+          description: Message payload (structure depends on type)
+      examples:
+        - type: connection_ack
+          data:
+            user_id: "user-123e4567-e89b-12d3-a456-426614174000"
+            timestamp: "2026-01-11T10:30:00Z"
+        - type: task_update
+          data:
+            action: "created"
+            task:
+              id: "task-123e4567-e89b-12d3-a456-426614174000"
+              title: "Daily standup meeting"
+              status: "active"
+              priority: "high"
+              tags: ["work", "meetings"]
+              due_date: "2026-01-12T09:00:00Z"
+              created_at: "2026-01-11T10:30:00Z"
+
+    TaskUpdateMessage:
+      type: object
+      description: Task update message sent to WebSocket clients
+      properties:
+        type:
+          type: string
+          enum: [task_update]
+        data:
+          type: object
+          properties:
+            action:
+              type: string
+              enum: [created, updated, deleted, completed, recurring_created]
+            task:
+              type: object
+              nullable: true
+              description: Full task object (null for deleted tasks)
+            changed_fields:
+              type: array
+              items:
+                type: string
+              nullable: true
+              description: List of changed fields (for updated action)
+            source:
+              type: string
+              enum: [user, system, recurring_task_service]
+
+x-event-consumers:
+  - topic: task-updates
+    subscription: websocket-service-sub
+    event_types:
+      - task_update.created
+      - task_update.updated
+      - task_update.deleted
+      - task_update.completed
+      - task_update.recurring_created
+    description: |
+      Consumes task-update events from the task-updates topic.
+      When a task-update event is received, this service:
+      1. Checks if the event has already been processed (idempotency)
+      2. Extracts the user_id from the event
+      3. Looks up all active WebSocket connections for that user
+      4. Broadcasts the task update to all user's connections
+      5. Handles connection failures gracefully (remove dead connections)
+      6. Marks the event as processed in the processed_events table
+
+x-connection-management:
+  description: |
+    WebSocket connections are managed in-memory using a ConnectionManager class.
+    Each connection is associated with a user_id (extracted from JWT token).
+    Multiple connections per user are supported (e.g., multiple browser tabs).
+
+    Connection lifecycle:
+    1. Client connects to /ws/{user_id} with JWT token
+    2. Server validates JWT and extracts user_id
+    3. Server adds connection to ConnectionManager
+    4. Server sends connection_ack message
+    5. Server broadcasts task updates to all user's connections
+    6. Client can send ping messages to keep connection alive
+    7. Server removes connection on disconnect or error
+
+    Reconnection strategy (client-side):
+    - Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s (max)
+    - On reconnect, client syncs missed updates via REST API
+
+x-scaling-strategy:
+  phase5_demo:
+    description: Single instance with in-memory connection manager
+    max_connections: 200 (sufficient for demo)
+  production:
+    description: Multiple instances with Redis-backed connection manager
+    sticky_sessions: Required (or Redis pub/sub for cross-instance broadcasting)
+    max_connections_per_instance: 1000
+
+x-dependencies:
+  - name: Dapr Pub/Sub (pubsub.kafka)
+    description: Consumes task-update events
+  - name: JWT Validation
+    description: Validates JWT tokens from Authorization header or query parameter
+
+x-metrics:
+  - name: websocket_connections_active
+    type: gauge
+    description: Current number of active WebSocket connections
+  - name: websocket_connections_total
+    type: counter
+    description: Total WebSocket connections established
+  - name: websocket_disconnections_total
+    type: counter
+    labels: [reason]
+    description: Total WebSocket disconnections by reason
+  - name: websocket_messages_sent_total
+    type: counter
+    description: Total messages sent to clients
+  - name: websocket_events_processed_total
+    type: counter
+    labels: [event_type]
+    description: Total task-update events processed
+  - name: websocket_broadcast_duration_seconds
+    type: histogram
+    description: Time to broadcast message to all user's connections
+  - name: websocket_errors_total
+    type: counter
+    labels: [error_type]
+    description: Total WebSocket errors

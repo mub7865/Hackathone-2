@@ -1,0 +1,221 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: |
+    Microservice that consumes reminder events and sends notifications through configured channels (email, in-app).
+    This service is event-driven and does not expose REST endpoints for external clients.
+  version: 1.0.0
+  contact:
+    name: Calm Orbit Todo Team
+    email: team@calm-orbit-todo.example.com
+
+servers:
+  - url: http://notification-service:8002
+    description: Internal Kubernetes service (not exposed externally)
+
+tags:
+  - name: Health
+    description: Health check endpoints for Kubernetes probes
+  - name: Metrics
+    description: Prometheus metrics endpoint
+
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if the service is running
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if the service is ready (database connected, Dapr ready, SendGrid configured)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ready"
+                  database:
+                    type: string
+                    example: "connected"
+                  dapr:
+                    type: string
+                    example: "ready"
+                  sendgrid:
+                    type: string
+                    example: "configured"
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "not_ready"
+                  database:
+                    type: string
+                    example: "disconnected"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus metrics for monitoring
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP notification_events_processed_total Total reminder events processed
+                  # TYPE notification_events_processed_total counter
+                  notification_events_processed_total{channel="email"} 456
+                  notification_events_processed_total{channel="inapp"} 789
+
+                  # HELP notification_sent_total Total notifications sent successfully
+                  # TYPE notification_sent_total counter
+                  notification_sent_total{channel="email"} 450
+                  notification_sent_total{channel="inapp"} 785
+
+                  # HELP notification_failed_total Total notifications that failed
+                  # TYPE notification_failed_total counter
+                  notification_failed_total{channel="email"} 6
+                  notification_failed_total{channel="inapp"} 4
+
+                  # HELP notification_delivery_duration_seconds Time to deliver notification
+                  # TYPE notification_delivery_duration_seconds histogram
+                  notification_delivery_duration_seconds_bucket{channel="email",le="1.0"} 400
+                  notification_delivery_duration_seconds_bucket{channel="email",le="5.0"} 450
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        service:
+          type: string
+          example: "notification-service"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationPreference:
+      type: object
+      description: User notification preferences
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email_enabled:
+          type: boolean
+          default: true
+        inapp_enabled:
+          type: boolean
+          default: true
+        quiet_hours_start:
+          type: string
+          format: time
+          example: "22:00:00"
+        quiet_hours_end:
+          type: string
+          format: time
+          example: "08:00:00"
+        max_notifications_per_hour:
+          type: integer
+          minimum: 1
+          default: 10
+        timezone:
+          type: string
+          example: "America/New_York"
+
+x-event-consumers:
+  - topic: reminders
+    subscription: notification-service-sub
+    event_types:
+      - reminder.triggered
+    description: |
+      Consumes reminder events from the reminders topic.
+      When a reminder event is received, this service:
+      1. Checks if the event has already been processed (idempotency)
+      2. Retrieves user notification preferences from the database
+      3. Checks if current time is within quiet hours
+      4. Checks if rate limit (max notifications per hour) is exceeded
+      5. Sends email notification via SendGrid (if email_enabled)
+      6. Sends in-app notification via WebSocket Service (if inapp_enabled)
+      7. Implements retry logic (3 attempts with exponential backoff)
+      8. Logs failed notifications to dead letter queue
+      9. Marks the event as processed in the processed_events table
+
+x-integrations:
+  sendgrid:
+    description: Email delivery via SendGrid API
+    free_tier: 100 emails/day
+    rate_limit: 10 emails/user/day (application-level)
+    retry_policy:
+      max_attempts: 3
+      backoff: exponential
+      initial_delay: 1s
+      max_delay: 30s
+
+x-dependencies:
+  - name: Neon Postgres
+    description: Database for notification preferences and processed events
+  - name: Dapr Pub/Sub (pubsub.kafka)
+    description: Consumes reminder events
+  - name: Dapr Secrets (secretstores.kubernetes)
+    description: Retrieves SendGrid API key
+  - name: SendGrid API
+    description: Email delivery service
+  - name: WebSocket Service
+    description: In-app notification delivery via Dapr Service Invocation
+
+x-metrics:
+  - name: notification_events_processed_total
+    type: counter
+    labels: [channel]
+    description: Total reminder events processed by channel
+  - name: notification_sent_total
+    type: counter
+    labels: [channel]
+    description: Total notifications sent successfully
+  - name: notification_failed_total
+    type: counter
+    labels: [channel, reason]
+    description: Total notifications that failed
+  - name: notification_delivery_duration_seconds
+    type: histogram
+    labels: [channel]
+    description: Time to deliver notification
+  - name: notification_rate_limited_total
+    type: counter
+    description: Total notifications skipped due to rate limiting
+  - name: notification_quiet_hours_skipped_total
+    type: counter
+    description: Total notifications skipped due to quiet hours

@@ -1,0 +1,358 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      version:
+        description: 'Image version/tag to deploy'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
+
+jobs:
+  determine-environment:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      version: ${{ steps.set-version.outputs.version }}
+
+    steps:
+    - name: Set environment
+      id: set-env
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+        elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+          echo "environment=staging" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+        else
+          echo "environment=dev" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set version
+      id: set-version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        fi
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'dev'
+    environment:
+      name: dev
+      url: https://dev.todo-app.example.com
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG_DEV }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Update image tags
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        # Update backend deployment
+        sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" backend-deployment.yaml
+
+        # Update frontend deployment
+        sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" frontend-deployment.yaml
+
+    - name: Deploy to Kubernetes
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        export KUBECONFIG=../../../kubeconfig
+
+        # Apply configurations
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmap.yaml
+        kubectl apply -f secrets.yaml
+
+        # Deploy database
+        kubectl apply -f postgres-deployment.yaml
+        kubectl apply -f postgres-service.yaml
+
+        # Deploy Kafka
+        kubectl apply -f kafka-deployment.yaml
+        kubectl apply -f kafka-service.yaml
+
+        # Deploy backend
+        kubectl apply -f backend-deployment.yaml
+        kubectl apply -f backend-service.yaml
+
+        # Deploy frontend
+        kubectl apply -f frontend-deployment.yaml
+        kubectl apply -f frontend-service.yaml
+
+        # Deploy ingress
+        kubectl apply -f ingress.yaml
+
+        # Wait for rollout
+        kubectl rollout status deployment/backend-deployment -n default --timeout=5m
+        kubectl rollout status deployment/frontend-deployment -n default --timeout=5m
+
+    - name: Run smoke tests
+      run: |
+        export KUBECONFIG=kubeconfig
+
+        # Wait for services to be ready
+        sleep 30
+
+        # Get service URL
+        BACKEND_URL=$(kubectl get svc backend-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+        # Health check
+        curl -f http://${BACKEND_URL}:8000/health || exit 1
+
+        echo "✅ Smoke tests passed"
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.todo-app.example.com
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Update image tags
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" backend-deployment.yaml
+        sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" frontend-deployment.yaml
+
+    - name: Deploy to Kubernetes
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        export KUBECONFIG=../../../kubeconfig
+
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmap.yaml
+        kubectl apply -f secrets.yaml
+        kubectl apply -f postgres-deployment.yaml
+        kubectl apply -f postgres-service.yaml
+        kubectl apply -f kafka-deployment.yaml
+        kubectl apply -f kafka-service.yaml
+        kubectl apply -f backend-deployment.yaml
+        kubectl apply -f backend-service.yaml
+        kubectl apply -f frontend-deployment.yaml
+        kubectl apply -f frontend-service.yaml
+        kubectl apply -f ingress.yaml
+
+        kubectl rollout status deployment/backend-deployment -n default --timeout=5m
+        kubectl rollout status deployment/frontend-deployment -n default --timeout=5m
+
+    - name: Run integration tests
+      run: |
+        export KUBECONFIG=kubeconfig
+        sleep 30
+
+        BACKEND_URL=$(kubectl get svc backend-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+        # Health check
+        curl -f http://${BACKEND_URL}:8000/health || exit 1
+
+        # API tests
+        curl -f http://${BACKEND_URL}:8000/api/v1/tasks || exit 1
+
+        echo "✅ Integration tests passed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://todo-app.example.com
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Create backup
+      run: |
+        export KUBECONFIG=kubeconfig
+
+        # Backup current deployment
+        kubectl get deployment backend-deployment -n default -o yaml > backup-backend-deployment.yaml
+        kubectl get deployment frontend-deployment -n default -o yaml > backup-frontend-deployment.yaml
+
+        echo "✅ Backup created"
+
+    - name: Update image tags
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" backend-deployment.yaml
+        sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.determine-environment.outputs.version }}|g" frontend-deployment.yaml
+
+    - name: Deploy to Kubernetes (Blue-Green)
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        export KUBECONFIG=../../../kubeconfig
+
+        # Deploy new version
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmap.yaml
+        kubectl apply -f secrets.yaml
+        kubectl apply -f backend-deployment.yaml
+        kubectl apply -f frontend-deployment.yaml
+
+        # Wait for new pods to be ready
+        kubectl rollout status deployment/backend-deployment -n default --timeout=10m
+        kubectl rollout status deployment/frontend-deployment -n default --timeout=10m
+
+        echo "✅ New version deployed"
+
+    - name: Run production smoke tests
+      run: |
+        export KUBECONFIG=kubeconfig
+        sleep 60
+
+        BACKEND_URL=$(kubectl get svc backend-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+        # Health check
+        for i in {1..5}; do
+          if curl -f http://${BACKEND_URL}:8000/health; then
+            echo "✅ Health check passed"
+            break
+          fi
+          if [ $i -eq 5 ]; then
+            echo "❌ Health check failed after 5 attempts"
+            exit 1
+          fi
+          sleep 10
+        done
+
+        # API availability check
+        curl -f http://${BACKEND_URL}:8000/api/v1/tasks || exit 1
+
+        echo "✅ Production smoke tests passed"
+
+    - name: Update service (switch traffic)
+      working-directory: ./calm-orbit-todo/phase5-cloud/k8s
+      run: |
+        export KUBECONFIG=../../../kubeconfig
+
+        # Apply services to route traffic to new deployment
+        kubectl apply -f backend-service.yaml
+        kubectl apply -f frontend-service.yaml
+        kubectl apply -f ingress.yaml
+
+        echo "✅ Traffic switched to new version"
+
+    - name: Monitor deployment
+      run: |
+        export KUBECONFIG=kubeconfig
+
+        # Monitor for 2 minutes
+        for i in {1..12}; do
+          ERROR_RATE=$(kubectl logs -l app=backend-deployment -n default --tail=100 | grep -c "ERROR" || echo "0")
+          if [ "$ERROR_RATE" -gt 10 ]; then
+            echo "❌ High error rate detected: $ERROR_RATE errors"
+            exit 1
+          fi
+          sleep 10
+        done
+
+        echo "✅ Deployment monitoring passed"
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        export KUBECONFIG=kubeconfig
+
+        echo "⚠️ Rolling back deployment"
+
+        # Restore from backup
+        kubectl apply -f backup-backend-deployment.yaml
+        kubectl apply -f backup-frontend-deployment.yaml
+
+        # Wait for rollback
+        kubectl rollout status deployment/backend-deployment -n default --timeout=5m
+        kubectl rollout status deployment/frontend-deployment -n default --timeout=5m
+
+        echo "✅ Rollback completed"
+
+  notify-deployment:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [determine-environment, deploy-dev, deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+    - name: Create deployment summary
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ needs.determine-environment.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ needs.determine-environment.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.deploy-dev.result }}" == "success" ] || \
+           [ "${{ needs.deploy-staging.result }}" == "success" ] || \
+           [ "${{ needs.deploy-production.result }}" == "success" ]; then
+          echo "✅ Deployment successful" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Deployment failed" >> $GITHUB_STEP_SUMMARY
+        fi

@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calm-orbit-todo.example.com/schemas/task-update-event.v1.json",
+  "title": "Task Update Event",
+  "description": "Event published for real-time WebSocket updates when any task changes occur",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "timestamp",
+    "correlation_id",
+    "user_id",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version for backward compatibility",
+      "enum": ["1.0"],
+      "example": "1.0"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event (for idempotency)",
+      "example": "123e4567-e89b-12d3-a456-426614174000"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Type of task update event",
+      "enum": [
+        "task_update.created",
+        "task_update.updated",
+        "task_update.deleted",
+        "task_update.completed",
+        "task_update.recurring_created"
+      ],
+      "example": "task_update.created"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the event occurred (UTC)",
+      "example": "2026-01-11T10:30:00Z"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Correlation ID for distributed tracing",
+      "example": "987fcdeb-51a2-43d7-9876-543210fedcba"
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the user who owns the task",
+      "example": "user-123e4567-e89b-12d3-a456-426614174000"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Task update payload for WebSocket broadcast",
+      "required": ["task_id", "action"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the task",
+          "example": "task-123e4567-e89b-12d3-a456-426614174000"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action that triggered the update",
+          "enum": ["created", "updated", "deleted", "completed", "recurring_created"],
+          "example": "created"
+        },
+        "task": {
+          "type": ["object", "null"],
+          "description": "Full task object (null for deleted tasks)",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": ["string", "null"]
+            },
+            "status": {
+              "type": "string",
+              "enum": ["active", "complete"]
+            },
+            "priority": {
+              "type": "string",
+              "enum": ["high", "medium", "low"]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "due_date": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "remind_at": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "recurring_pattern_id": {
+              "type": ["string", "null"],
+              "format": "uuid"
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "changed_fields": {
+          "type": ["array", "null"],
+          "description": "List of fields that changed (for updated action)",
+          "items": {
+            "type": "string"
+          },
+          "example": ["title", "priority", "tags"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the update",
+          "enum": ["user", "system", "recurring_task_service"],
+          "example": "user"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0",
+      "event_id": "evt-update-123e4567-e89b-12d3-a456-426614174000",
+      "event_type": "task_update.created",
+      "timestamp": "2026-01-11T10:30:00Z",
+      "correlation_id": "corr-987fcdeb-51a2-43d7-9876-543210fedcba",
+      "user_id": "user-123e4567-e89b-12d3-a456-426614174000",
+      "payload": {
+        "task_id": "task-123e4567-e89b-12d3-a456-426614174000",
+        "action": "created",
+        "task": {
+          "id": "task-123e4567-e89b-12d3-a456-426614174000",
+          "title": "Daily standup meeting",
+          "description": "Team sync at 9 AM",
+          "status": "active",
+          "priority": "high",
+          "tags": ["work", "meetings"],
+          "due_date": "2026-01-12T09:00:00Z",
+          "remind_at": "2026-01-12T08:45:00Z",
+          "recurring_pattern_id": "pattern-456e7890-e89b-12d3-a456-426614174111",
+          "created_at": "2026-01-11T10:30:00Z",
+          "updated_at": "2026-01-11T10:30:00Z"
+        },
+        "changed_fields": null,
+        "source": "user"
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "event_id": "evt-update-234e5678-e89b-12d3-a456-426614174001",
+      "event_type": "task_update.recurring_created",
+      "timestamp": "2026-01-12T09:00:00Z",
+      "correlation_id": "corr-987fcdeb-51a2-43d7-9876-543210fedcba",
+      "user_id": "user-123e4567-e89b-12d3-a456-426614174000",
+      "payload": {
+        "task_id": "task-234e5678-e89b-12d3-a456-426614174001",
+        "action": "recurring_created",
+        "task": {
+          "id": "task-234e5678-e89b-12d3-a456-426614174001",
+          "title": "Daily standup meeting",
+          "description": "Team sync at 9 AM",
+          "status": "active",
+          "priority": "high",
+          "tags": ["work", "meetings"],
+          "due_date": "2026-01-13T09:00:00Z",
+          "remind_at": "2026-01-13T08:45:00Z",
+          "recurring_pattern_id": "pattern-456e7890-e89b-12d3-a456-426614174111",
+          "created_at": "2026-01-12T09:00:00Z",
+          "updated_at": "2026-01-12T09:00:00Z"
+        },
+        "changed_fields": null,
+        "source": "recurring_task_service"
+      }
+    }
+  ]
+}

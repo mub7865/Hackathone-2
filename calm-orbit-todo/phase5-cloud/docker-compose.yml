@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: calm-orbit-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: calm_orbit_todo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - calm-orbit-network
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: calm-orbit-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/calm_orbit_todo
+
+      # JWT
+      JWT_SECRET_KEY: your-secret-key-change-in-production
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
+      # CORS
+      CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+
+      # OpenAI (optional for chatbot)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Environment
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - calm-orbit-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_BACKEND_URL: http://backend:8000
+    container_name: calm-orbit-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_BACKEND_URL: http://backend:8000
+      NEXT_PUBLIC_FEATURE_NEW_CHAT: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - calm-orbit-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  calm-orbit-network:
+    driver: bridge
