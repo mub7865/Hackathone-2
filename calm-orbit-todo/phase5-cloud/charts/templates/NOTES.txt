@@ -1,0 +1,57 @@
+Thank you for installing Todo Chatbot!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+Get the application URL by running these commands in separate terminal:
+
+{{- if .Values.frontend.enabled }}
+  Frontend Service:
+  $ export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services frontend-service)
+  $ export NODE_IP=$(minikube ip)
+  $ echo "Access your application at: http://$NODE_IP:$NODE_PORT"
+  $ minikube service frontend-service -n {{ .Release.Namespace }} --url
+{{- end }}
+
+{{- if .Values.backend.enabled }}
+  Backend Service (internal):
+  $ kubectl get --namespace {{ .Release.Namespace }} service backend-service
+{{- end }}
+
+{{- if .Values.frontend.enabled }}
+To verify frontend is running:
+  $ kubectl get pods -n {{ .Release.Namespace }} -l app=frontend
+{{- end }}
+
+{{- if .Values.backend.enabled }}
+To verify backend is running:
+  $ kubectl get pods -n {{ .Release.Namespace }} -l app=backend
+
+Check backend health:
+  $ kubectl exec deployment/frontend -n {{ .Release.Namespace }} -- curl http://backend-service:8000/health
+{{- end }}
+
+Test frontend-to-backend connectivity:
+  $ kubectl exec deployment/frontend -n {{ .Release.Namespace }} -- curl http://backend-service:8000/health
+
+View logs:
+  $ kubectl logs -n {{ .Release.Namespace }} -l app=frontend -f
+  $ kubectl logs -n {{ .Release.Namespace }} -l app=backend -f
+
+TROUBLESHOOTING:
+  If pods are not starting, check:
+  $ kubectl describe pod <pod-name> -n {{ .Release.Namespace }}
+  $ kubectl logs <pod-name> -n {{ .Release.Namespace }}
+
+  If secrets are missing, recreate them:
+  $ kubectl create secret generic todo-secrets \
+    --from-literal=DATABASE_URL="$DATABASE_URL" \
+    --from-literal=JWT_SECRET="$JWT_SECRET" \
+    --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+    -n todo-app
+
+  For more troubleshooting, see quickstart.md troubleshooting section.

@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  namespace: todo-app
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      name: db-migration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migration
+        image: todo-backend:v1.0.0
+        command: ["python", "-m", "alembic", "upgrade", "head"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: todo-secrets
+              key: DATABASE_URL
+              optional: false
